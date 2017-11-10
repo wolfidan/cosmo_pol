@@ -1,0 +1,21 @@
+radar:
+    coords: [46.42561, 6.09996,1672]
+    type: ground
+    frequency: 5.6
+    range: 150000
+    radial_resolution: 500
+    PRI: 700
+    FFT_length: 128
+    sensitivity: [-15,10000]
+    3dB_beamwidth: 1.
+integration:
+    scheme: 1
+    nh_GH: 5
+    nv_GH: 9
+    weight_threshold: 0.999
+refraction:
+    scheme: 1
+attenuation:
+    correction: 1
+doppler:
+    scheme: 2 
