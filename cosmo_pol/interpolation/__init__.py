@@ -12,7 +12,8 @@ __email__ = "daniel.wolfensberger@epfl.ch"
 
 
 from .radial import Radial
-from .atm_refraction import get_GPM_refraction, get_radar_refraction
+from .atm_refraction import compute_trajectory_GPM, compute_trajectory_radial
 from .melting import melting
-from .quadrature import get_points_and_weights
+from .quadrature import gautschi_points_and_weights
 from .interpolation_c import get_all_radar_pts
+from .interpolation import get_interpolated_radial, integrate_radials

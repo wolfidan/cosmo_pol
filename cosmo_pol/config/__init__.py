@@ -1,1 +1,1 @@
-from cfg import init, sanity_check, CONFIG
+from .cfg import init, sanity_check, CONFIG

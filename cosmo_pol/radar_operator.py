@@ -14,7 +14,6 @@ __email__ = "daniel.wolfensberger@epfl.ch"
 
 
 # Global imports
-import sys
 from functools import partial
 import multiprocess as mp
 import numpy as np
@@ -24,18 +23,18 @@ import gc
 from textwrap import dedent
 
 # Local imports
-from cosmo_pol.radar import PyartRadop, GPM_simulator
+from cosmo_pol.radar import PyartRadop, get_GPM_angles, SimulatedGPM
 from cosmo_pol.config import cfg
 from cosmo_pol.interpolation import get_interpolated_radial, integrate_radials
 from cosmo_pol.scatter import get_radar_observables, cut_at_sensitivity
 from cosmo_pol.constants import global_constants as constants
 from cosmo_pol.lookup import load_all_lut
-from cosmo_pol.utilities import combine_beams
+from cosmo_pol.utilities import combine_subradials
 
 BASE_VARIABLES=['U','V','W','QR_v','QS_v','QG_v','QI_v','RHO','T']
 BASE_VARIABLES_2MOM=['QH_v','QNH_v','QNR_v','QNS_v','QNG_v','QNI_v']
 
-class RadarOperator():
+class RadarOperator(object):
     def __init__(self, options_file = None, output_variables = 'all'):
         '''
         Creates a RadarOperator class instance that can be used to compute
@@ -60,15 +59,15 @@ class RadarOperator():
 
         # delete the module's globals
         print('Reading options defined in options file')
-        cfg.init(options_file) # Initialize options with 'options_radop.txt'
+        cfg.init(options_file) # Initialize options with specified file
 
-        constants.update() # Update constants now that we know user config
+        self.current_microphys_scheme = '1mom'
+        self.dic_vars = None
+        self.N = 0 # atmospheric refractivity
+
         self.config = cfg.CONFIG
         self.lut_sz = None
 
-        self.current_microphys_scheme = '1mom'
-        self.dic_vars = {}
-        self.N = 0 # atmospheric refractivity
 
         if output_variables in ['all','only_model','only_radar']:
             self.output_variables = output_variables
@@ -90,7 +89,12 @@ class RadarOperator():
         self.config = None
         cfg.CONFIG = None
 
-    def update_config(self, config_dic, check = True):
+    @property
+    def config(self):
+        return copy.deepcopy(self.__config)
+
+    @config.setter
+    def config(self, config_dic):
         '''
         Update the content of the user configuration, applies the necessary
         changes to the constants and if needed reloads the lookup tables
@@ -110,32 +114,36 @@ class RadarOperator():
         # if check == False, no sanity check will be done, do this only
         # if you are sure of what you are doing
 
-        if check:
-            checked_config = cfg.sanity_check(config_dic)
+        print('Loading new configuration...')
+        checked_config = cfg.sanity_check(config_dic)
+
+        if hasattr(self, 'config'):
+            # If frequency was changed or if melting is considered and not before
+            #  reload appropriate lookup tables
+            if checked_config['radar']['frequency'] != \
+                 self.config['radar']['frequency'] or \
+                 checked_config['microphysics']['with_melting'] != \
+                 self.config['microphysics']['with_melting'] \
+                 or not self.lut_sz:
+
+                 print('Reloading lookup tables...')
+                 self.__config = checked_config
+                 cfg.CONFIG = checked_config
+                 # Recompute constants
+                 constants.update() # Update constants now that we know user config
+                 self.set_lut()
+
+            else:
+
+                self.__config = checked_config
+                cfg.CONFIG = checked_config
+                # Recompute constants
+                constants.update() # Update constants now that we know user config
         else:
-            checked_config = config_dic
-
-        # If frequency was changed or if melting is considered and not before
-        #  reload appropriate lookup tables
-        if checked_config['radar']['frequency'] != \
-             self.config['radar']['frequency'] or \
-             checked_config['microphysics']['with_melting'] != \
-             self.config['microphysics']['with_melting'] \
-             or not self.lut_sz:
-
-             self.config = checked_config
-             cfg.CONFIG = checked_config
-             # Recompute constants
-             constants.update() # Update constants now that we know user config
-             self.set_lut()
-
-        else:
-
-            self.config = checked_config
+            self.__config = checked_config
             cfg.CONFIG = checked_config
-            # Recompute constants
-            constants.update() # Update constants now that we know user config
-
+            constants.update()
+            self.set_lut()
 
     def set_lut(self):
         '''
@@ -325,7 +333,7 @@ class RadarOperator():
         beam = cut_at_sensitivity(beam,self.config['radar']['sensitivity'])
 
         if output_variables == 'all':
-            beam= combine_beams((beam, integrate_radials(list_GH_pts)))
+            beam= combine_subradials((beam, integrate_radials(list_GH_pts)))
 
         del dic_vars
         del N
@@ -394,22 +402,21 @@ class RadarOperator():
         event = m.Event()
 
         list_sweeps=[]
-
         def worker(event,elev, azimuth):#
             print(azimuth)
             try:
                 if not event.is_set():
-                    list_GH_pts = get_interpolated_radial(dic_vars,
+                    list_subradials = get_interpolated_radial(dic_vars,
                                                           azimuth,
                                                           elev,
                                                           N)
                     if output_variables in ['all','only_radar']:
-                        output = get_radar_observables(list_GH_pts, lut_sz)
+                        output = get_radar_observables(list_subradials, lut_sz)
                     if output_variables == 'only_model':
-                        output =  integrate_radials(list_GH_pts)
+                        output =  integrate_radials(list_subradials)
                     elif output_variables == 'all':
-                        output = combine_beams((output,
-                                 integrate_radials(list_GH_pts)))
+                        output = combine_subradials((output,
+                                 integrate_radials(list_subradials)))
 
                     return output
             except:
@@ -477,11 +484,12 @@ class RadarOperator():
         dic_vars, N, lut_sz, output_variables=self.define_globals()
 
         # Define list of angles that need to be resolved
-        if not len(elevations):
-            if elev_step==-1:
-                elev_step=self.config['radar']['3dB_beamwidth']
+        if elevations == None:
+            if elev_step == None:
+                elev_step = self.config['radar']['3dB_beamwidth']
             # Define elevation and ranges
-            elevations=np.arange(elev_start, elev_stop + elev_step, elev_step)
+            elevations = np.arange(elev_start, elev_stop + elev_step,
+                                   elev_step)
 
         # Define  ranges
         rranges = constants.RANGE_RADAR
@@ -497,18 +505,18 @@ class RadarOperator():
             print(elev)
             try:
                 if not event.is_set():
-                    list_GH_pts = get_interpolated_radial(dic_vars,
+                    list_subradials = get_interpolated_radial(dic_vars,
                                                           azimuth,
                                                           elev,
                                                           N)
 
                     if output_variables in ['all','only_radar']:
-                        output = get_radar_observables(list_GH_pts, lut_sz)
+                        output = get_radar_observables(list_subradials, lut_sz)
                     if output_variables == 'only_model':
-                        output =  integrate_radials(list_GH_pts)
+                        output =  integrate_radials(list_subradials)
                     elif output_variables == 'all':
-                        output = combine_beams((output,
-                                 integrate_radials(list_GH_pts)))
+                        output = combine_subradials((output,
+                                 integrate_radials(list_subradials)))
 
                     return output
             except:
@@ -517,8 +525,8 @@ class RadarOperator():
                 event.set()
 
         for a in azimuths: # Loop on the o
-            func=partial(worker,event,a) # Partial function
-            list_beams = pool.map(func,elevations)
+            func = partial(worker, event, a) # Partial function
+            list_beams = map(func,elevations)
             list_sweeps.append(list_beams)
 
         pool.close()
@@ -585,7 +593,7 @@ class RadarOperator():
         global dic_vars, N, lut_sz, output_variables
         dic_vars, N, lut_sz, output_variables = self.define_globals()
 
-        az,elev,rang,coords_GPM = GPM_simulator.get_GPM_angles(GPM_file,band)
+        az,elev,rang,coords_GPM = get_GPM_angles(GPM_file,band)
         # Initialize computing pool
         pool = mp.Pool(processes = mp.cpu_count(), maxtasksperchild=1)
         m = mp.Manager()
@@ -610,18 +618,19 @@ class RadarOperator():
                     cfg.CONFIG['radar']['range'] = params[2]
                     cfg.CONFIG['radar']['coords'] = [params[3], params[4], params[5]]
 
-                    list_GH_pts = get_interpolated_radial(dic_vars,azimuth,
-                                                                elev,N=N)
+                    list_subradials = get_interpolated_radial(dic_vars,
+                                                                azimuth,
+                                                                elev,N = N)
 
-                    output = get_radar_observables(list_GH_pts,lut_sz)
+                    output = get_radar_observables(list_subradials,lut_sz)
 
                     if output_variables in ['all','only_radar']:
-                        output = get_radar_observables(list_GH_pts,lut_sz)
+                        output = get_radar_observables(list_subradials,lut_sz)
                     if output_variables == 'only_model':
-                        output =  integrate_radials(list_GH_pts)
+                        output =  integrate_radials(list_subradials)
                     elif output_variables == 'all':
-                        output = combine_beams((output,
-                                integrate_radials(list_GH_pts)))
+                        output = combine_subradials((output,
+                                integrate_radials(list_subradials)))
 
                     return output
             except:
@@ -660,8 +669,20 @@ class RadarOperator():
             if output_variables in ['all','only_radar']:
                 list_beams = cut_at_sensitivity(list_beams)
 
-            list_beams_formatted = GPM_simulator.SimulatedGPM(list_beams,
-                                                              dim_swath,
-                                                              band)
+            list_beams_formatted = SimulatedGPM(list_beams,
+                                                dim_swath,
+                                                band)
             return list_beams_formatted
 
+
+if __name__ == '__main__':
+    files_c = pc.get_model_filenames('/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/')
+    a = RadarOperator(options_file='/data/cosmo_pol/option_files/MXPOL_RHI_PAYERNE.yml')
+    fu = a.config
+    fu['microphysics']['with_melting'] = 1
+    fu['integration']['scheme'] = 'ml'
+    a.config = fu
+    files_c = pc.get_model_filenames('/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/')
+    a.load_model_file(files_c['h'][60],cfilename = '/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/lfsf00000000c')
+
+    r = a.get_RHI(azimuths=[3])

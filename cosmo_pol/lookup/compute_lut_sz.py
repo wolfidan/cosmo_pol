@@ -22,7 +22,6 @@ import stats
 
 # Local imports
 from cosmo_pol.constants import global_constants as constants
-from cosmo_pol.config import CONFIG
 from cosmo_pol.interpolation import quadrature
 from cosmo_pol.lookup import Lookup_table, save_lut
 from cosmo_pol.hydrometeors import create_hydrometeor
@@ -67,7 +66,7 @@ W_CONTENTS = np.linspace(1E-3,0.999,100)
 FREQUENCIES=[9.41, 5.6, 2.7, 13.6, 35.6]
 # The number of diameter bins to use
 # DIAMETER = np.linspace(hydrom.dmin, hydrom.dmax, NUM_DIAMETERS)
-NUM_DIAMETERS = CONFIG['integration']['nbins_D']
+NUM_DIAMETERS = 1024
 
 # Number of quadrature points used in the aspect-ratio integration
 N_QUAD_PTS = 5

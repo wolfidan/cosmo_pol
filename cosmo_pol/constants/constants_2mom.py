@@ -24,7 +24,6 @@ X_MAX_G = 5E-04
 
 B_G = 1./B_G_ # from x= a * D**b
 A_G = A_G_**(-1/B_G_) # from x= a * D**b
-B_G = c1.B_G# Ŧo remove!
 BETA_G=BETA_G_/B_G_
 ALPHA_G=ALPHA_G_*A_G_**(-BETA_G_/B_G_)
 NU_G=NU_G_/B_G_
@@ -36,7 +35,6 @@ LAMBDA_FACTOR_G=1./A_G*spe.gamma((MU_G+1)/NU_G)/spe.gamma((MU_G+B_G+1)/NU_G)
 
 # Get correct units
 A_G=A_G*1000**(-B_G)
-A_G =  c1.A_G # Ŧo remove!
 ALPHA_G=ALPHA_G*1000**(-BETA_G)
 
 # Compute constant integration factors (saves time since evaluation
@@ -58,7 +56,6 @@ X_MIN_S = 1E-10
 X_MAX_S = 2E-05
 
 B_S = 1./B_S_ # from x= a * D**b
-B_S = c1.B_S# Ŧo remove!
 A_S = A_S_**(-1/B_S_)
 BETA_S=BETA_S_/B_S_
 ALPHA_S=ALPHA_S_*A_S_**(-BETA_S_/B_S_)
@@ -71,7 +68,6 @@ LAMBDA_FACTOR_S=1./A_S*spe.gamma((MU_S+1)/NU_S)/spe.gamma((MU_S+B_S+1)/NU_S)
 
 # Get correct units
 A_S = A_S*1000**(-B_S)
-A_S =  c1.A_S # Ŧo remove!
 ALPHA_S = ALPHA_S*1000**(-BETA_S)
 
 # Compute constant integration factors (saves time since evaluation

@@ -13,18 +13,18 @@ __email__ = "daniel.wolfensberger@epfl.ch"
 
 # Global imports
 import numpy as np
-
+np.warnings.filterwarnings('ignore')
 from scipy.ndimage.filters import gaussian_filter
 import copy
 from scipy.optimize import fsolve
 
 # Local imports
-from cosmo_pol.scatter import get_refl
 from cosmo_pol.hydrometeors import create_hydrometeor
 from cosmo_pol.utilities import (nansum_arr, nan_cumsum, sum_arr,
                                  nan_cumprod, vlinspace)
 from cosmo_pol.interpolation import Radial
-from cosmo_pol.config import CONFIG
+from cosmo_pol.config.cfg import CONFIG
+from cosmo_pol.scatter import get_refl
 from cosmo_pol.constants import global_constants as constants
 
 def proj_vel(U, V, W, vf, theta,phi):
@@ -66,6 +66,7 @@ def get_radar_observables(list_subradials, lut_sz):
     global microphysics_scheme
 
     # Get info from user config
+    from cosmo_pol.config.cfg import CONFIG
     doppler_scheme = CONFIG['doppler']['scheme']
     add_turb = CONFIG['doppler']['turbulence_correction']
     add_antenna_motion = CONFIG['doppler']['motion_correction']
@@ -106,12 +107,16 @@ def get_radar_observables(list_subradials, lut_sz):
     dic_hydro = {}
     for h in hydrom_types:
         dic_hydro[h] = create_hydrometeor(h, microphysics_scheme)
+        if h in ['mS','mG','I']:
+            # Add info on number of bins to use for numerical integrations
+            nbins_D = lut_sz[h].value_table.shape[-2]
+            dic_hydro[h].nbins_D = nbins_D
 
     # Consider special case of 'ml' quadrature scheme, where most
     # quadrature points are used only near the melting layer edges
 
     if integration_scheme == 'ml':
-        all_weights = np.array([b.GH_weight for b in list_subradials])
+        all_weights = np.array([b.quad_weight for b in list_subradials])
         total_weight_at_gates = np.sum(all_weights, axis = 0)
 
     # Initialize integrated scattering matrix, see lut submodule for info
@@ -141,12 +146,13 @@ def get_radar_observables(list_subradials, lut_sz):
                 # account attenuation
                 ah_per_beam = np.zeros((n_gates,),dtype = 'float32') + np.nan
 
-        for j,h in enumerate(hydrom_types): # Loop on hydrometeors
+        for j, h in enumerate(hydrom_types): # Loop on hydrometeors
 
             # If melting mode is on, we skip the melting hydrometeors
             # for the beams where no melting is detected
             if melting:
-                if h not in ['mS','mG']:
+                if not subrad.has_melting:
+                    if h in ['mS','mG']:
                         continue
 
             """
@@ -168,10 +174,10 @@ def get_radar_observables(list_subradials, lut_sz):
 
             QM = subrad.values['Q'+h+'_v'] # Get mass densities
             valid_data = QM > 0
-            if not np.isscalar(subrad.GH_weight):
+            if not np.isscalar(subrad.quad_weight):
                 # Consider only gates where QM > 0 for subradials with non
                 # zero weight
-                valid_data = np.logical_and(valid_data, subrad.weight > 0)
+                valid_data = np.logical_and(valid_data, subrad.quad_weight > 0)
             if not np.any(valid_data):
                 continue # Skip
 
@@ -200,9 +206,8 @@ def get_radar_observables(list_subradials, lut_sz):
             # For melting hydrometeor, diameters depend on wet fraction...
             if h in ['mS','mG']:
                 # Number of diameter bins in lookup table
-                n_d_bins = lut_sz[h].axes[lut_sz[h].axes_names['d']].shape[1]
                 list_D = vlinspace(dic_hydro[h].d_min, dic_hydro[h].d_max,
-                                   n_d_bins)
+                                   dic_hydro[h].nbins_D)
 
                 dD = list_D[:,1] - list_D[:,0]
             else:
@@ -242,8 +247,8 @@ def get_radar_observables(list_subradials, lut_sz):
                                     mode = 'constant',
                                     constant_values = False)
 
-            if not np.isscalar(subrad.GH_weight):
-                weights = (subrad.GH_weight[valid_data] /
+            if not np.isscalar(subrad.quad_weight):
+                weights = (subrad.quad_weight[valid_data] /
                            total_weight_at_gates[valid_data])
                 sz_integ[valid_data,j,:] = nansum_arr(sz_integ[valid_data,j,:],
                             weights[:,None] *
@@ -251,7 +256,7 @@ def get_radar_observables(list_subradials, lut_sz):
             else:
                 sz_integ[valid_data,j,:] = nansum_arr(sz_integ[valid_data,j,:],
                                                       sz_psd_integ *
-                                                      subrad.GH_weight)
+                                                      subrad.quad_weight)
             '''
             Part 4 : Doppler
             '''
@@ -304,17 +309,17 @@ def get_radar_observables(list_subradials, lut_sz):
 
             # Get radial velocity knowing hydrometeor fall speed and U,V,W from model
             theta = np.deg2rad(subrad.elev_profile) # elevation
-            phi = np.deg2rad(subrad.GH_pt[0])       # azimuth
+            phi = np.deg2rad(subrad.quad_pt[0])       # azimuth
             proj_wind = proj_vel(subrad.values['U'],subrad.values['V'],
                                subrad.values['W'], v_hydro, theta,phi)
 
             # Get mask of valid values
             total_weight_rvel = sum_arr(total_weight_rvel,
-                                          ~np.isnan(proj_wind)*subrad.GH_weight)
+                                          ~np.isnan(proj_wind)*subrad.quad_weight)
 
 
             # Average radial velocity for all sub-beams
-            rvel_avg = nansum_arr(rvel_avg, (proj_wind) * subrad.GH_weight)
+            rvel_avg = nansum_arr(rvel_avg, (proj_wind) * subrad.quad_weight)
 
         elif doppler_scheme == 3: # Full Doppler
             '''
@@ -388,25 +393,22 @@ def get_radar_observables(list_subradials, lut_sz):
     # Get radar observables
     ZH, ZV, ZDR, RHOHV, KDP, AH, AV, DELTA_HV = get_pol_from_sz(sz_integ)
 
-    # Derivative of delta_hv, with 0 prepended
-    DIFF_DELTA_DP = np.pad(DELTA_HV,pad_width=(1,0),mode='constant')
-
-    KDP_m = KDP + 0.5*DIFF_DELTA_DP # Account for differential phase on prop.
-    PHIDP = nan_cumsum(2 * KDP_m) * radial_res/1000.
+    PHIDP = nan_cumsum(2 * KDP) * radial_res/1000. + DELTA_HV
 
     ZV_ATT = ZV.copy()
     ZH_ATT = ZH.copy()
 
     if att_corr:
         # AH and AV are in dB so we need to convert them to linear
-        ZV_ATT *= nan_cumprod(10**(-0.1*AV*(radial_res/1000.))) # divide to get dist in km
-        ZH_ATT *= nan_cumprod(10**(-0.1*AH*(radial_res/1000.)))
+        ZV_ATT *= nan_cumprod(10**(-0.2*AV*(radial_res/1000.))) # divide to get dist in km
+        ZH_ATT *= nan_cumprod(10**(-0.2*AH*(radial_res/1000.)))
         ZDR = ZH_ATT / ZV_ATT
 
 
     if simulate_doppler:
         if doppler_scheme in [1, 2]:
             rvel_avg /= total_weight_rvel
+
         elif doppler_scheme == 3:
             try:
                 rvel_avg = np.nansum(np.tile(constants.VARRAY,
@@ -426,7 +428,7 @@ def get_radar_observables(list_subradials, lut_sz):
     rad_obs['ZH'] = ZH
     rad_obs['ZDR'] = ZDR
     rad_obs['ZV'] = ZV
-    rad_obs['KDP'] = KDP_m
+    rad_obs['KDP'] = KDP
     rad_obs['DELTA_HV'] = DELTA_HV
     rad_obs['PHIDP'] = PHIDP
     rad_obs['RHOHV'] = RHOHV
@@ -486,6 +488,8 @@ def get_pol_from_sz(sz):
     '''
 
     wavelength = constants.WAVELENGTH
+
+    from cosmo_pol.config.cfg import CONFIG
     K_squared = CONFIG['radar']['K_squared']
 
     # Horizontal reflectivity
@@ -519,6 +523,58 @@ def get_pol_from_sz(sz):
 
     return z_h,z_v,zdr,rhohv,kdp,ah,av,delta_hv
 
+def get_diameter_from_rad_vel(dic_hydro, phi, theta, U, V, W, rho_corr):
+    '''
+    Retrieves the diameters corresponding to all radial velocity bins, by
+    getting the corresponding terminal velocity and inverting the
+    diameter-velocity relations
+    Args:
+        dic_hydro: a dictionary containing the hydrometeor Class instances
+        phi: the azimuth angle in degrees
+        theta: the elevation angle in degrees
+        U: the eastward wind component of COSMO
+        V: the northward wind component of COSMO
+        W: the vertical wind component of COSMO
+        rho_corr: the correction for density (rho / rho_0)
+    Returns:
+         Da: the diameters corresponding to the left edge of all velocity bins
+         Db: the diameters corresponding to the right edge of all velocity bins
+         idx: the indices of the radar gates where Da and Db are valid values
+             (i.e. between dmin and dmax)
+
+    '''
+    theta = np.deg2rad(theta)
+    phi = np.deg2rad(phi)
+
+    wh = (1./rho_corr * (W + (U * np.sin(phi) +
+          V * np.cos(phi)) / np.tan(theta) - constants.VARRAY / np.sin(theta)))
+
+    idx = np.where(wh>=0)[0] # We are only interested in positive fall speeds
+
+    wh = wh[idx]
+
+    hydrom_types = dic_hydro.keys()
+
+    D = np.zeros((len(idx), len(hydrom_types)), dtype='float32')
+
+    # Get D bins from V bins
+    for i,h in enumerate(dic_hydro.keys()): # Loop on hydrometeors
+        D[:,i] = dic_hydro[h].get_D_from_V(wh)
+        # Threshold to valid diameters
+        D[D >= dic_hydro[h].d_max] = dic_hydro[h].d_max
+        D[D <= dic_hydro[h].d_min] = dic_hydro[h].d_min
+
+    # Array of left bin limits
+    Da = np.minimum(D[0:-1,:], D[1:,:])
+    # Array of right bin limits
+    Db = np.maximum(D[0:-1,:], D[1:,:])
+
+    # Get indice of lines where at least one bin width is larger than 0
+    mask = np.where(np.sum((Db-Da) == 0.0, axis = 1) < len(hydrom_types))[0]
+
+    return Da[mask,:], Db[mask,:], idx[mask]
+
+
 def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
     '''
     Computes the reflectivity within every bin of the Doppler spectrum
@@ -548,12 +604,12 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
     # if angles are larger than 90°, in that case we take 180-elevation
     # by symmetricity
     elev_lut = copy.deepcopy(elev)
-    elev_lut[elev_lut>90]=180-elev_lut[elev_lut>90]
+    elev_lut[elev_lut>90] = 180 - elev_lut[elev_lut>90]
     # Also check if angles are smaller than 0, in that case, flip sign
-    elev_lut[elev_lut<0]=-elev_lut[elev_lut<0]
+    elev_lut[elev_lut<0] = - elev_lut[elev_lut<0]
 
     # Get azimuth angle
-    phi = subrad.GH_pt[0]
+    phi = subrad.quad_pt[0]
 
     # Correction of velocity for air density
     rho_corr = (subrad.values['RHO']/subrad.values['RHO'][0])**0.5
@@ -598,9 +654,10 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
 
             # Initialize matrix of radar cross sections, N and D
             n_hydrom = len(dic_hydrom_gate.keys())
-            rcs = np.zeros((constants.N_BINS_D,n_hydrom),dtype='float32') + np.nan
-            N = np.zeros((constants.N_BINS_D,n_hydrom),dtype='float32') + np.nan
-            D = np.zeros((constants.N_BINS_D,n_hydrom),dtype='float32') + np.nan
+            n_d_bins = lut_sz[h].value_table.shape[-2]
+            rcs = np.zeros((n_d_bins, n_hydrom),dtype='float32') + np.nan
+            N = np.zeros((n_d_bins, n_hydrom),dtype='float32') + np.nan
+            D = np.zeros((n_d_bins, n_hydrom),dtype='float32') + np.nan
             D_min = np.zeros((n_hydrom),dtype = 'float32') + np.nan
             step_D = np.zeros((n_hydrom),dtype = 'float32') + np.nan
 
@@ -608,7 +665,7 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
             for j,h in enumerate(dic_hydrom_gate.keys()):
                 D[:,j] = np.linspace(dic_hydrom_gate[h].d_min,
                                      dic_hydrom_gate[h].d_max,
-                                     constants.N_BINS_D)
+                                     dic_hydrom_gate[h].nbins_D)
 
                 D_min[j] = D[0,j]
                 step_D[j] = D[1,j] - D[0,j]
@@ -699,7 +756,16 @@ def spectral_width_motion(elevations):
     return std_motion
 
 def broaden_spectrum(spectrum, std):
-    v=constants.VARRAY
+    '''
+    Broadens the spectrum with the specified standard deviations, by
+    applying a gaussian filter
+    Args:
+        spectrum: the Doppler spectrum as a 2D array, range and bin
+        std: the list of standard  deviations
+    Returns:
+         the Gaussian filtered (broadened) spectrum
+    '''
+    v = constants.VARRAY
     # Convolve spectrum and turbulence gaussian distributions
     # Get resolution in velocity
     v_res=v[2]-v[1]
@@ -715,16 +781,28 @@ def broaden_spectrum(spectrum, std):
 
 
 def cut_at_sensitivity(list_subradials):
+    '''
+    Censors simulated measurements where the reflectivity falls below the
+    sensitivity specified by the user, see the wiki for how to define
+    the sensitivity in the configuration files
+    Args:
+        list_subradials: a list of subradials containing the computed radar
+            observables
+    Returns:
+         the list_subradials but censored with the radar sensitivity
+    '''
+    from cosmo_pol.config.cfg import CONFIG
     sens_config = CONFIG['radar']['sensitivity']
     if not isinstance(sens_config,list):
         sens_config = [sens_config]
 
     if len(sens_config) == 3: # Sensitivity - gain - snr
-        threshold_func = lambda r: sens_config[0] + constants.RADAR_CONSTANT_DB \
-                         + sens_config[2] + 20*np.log10(r/1000.)
+        threshold_func = lambda r: (sens_config[0] + constants.RADAR_CONSTANT_DB
+                         + sens_config[2] + 20*np.log10(r/1000.))
     elif len(sens_config) == 2: # ZH - range
-        threshold_func = lambda r: (sens_config[0] - 20*np.log10(sens_config[1]/1000.)) \
-                                + 20*np.log10(r/1000.)
+        threshold_func = lambda r: ((sens_config[0] -
+                                     20 * np.log10(sens_config[1] / 1000.)) +
+                                     20 * np.log10(r / 1000.))
     elif len(sens_config) == 1: # ZH
         threshold_func = lambda r: sens_config[0]
 
@@ -744,9 +822,10 @@ def cut_at_sensitivity(list_subradials):
                 for k in b.values.keys():
                     if k in constants.SIMULATED_VARIABLES:
                         if k == 'DSPECTRUM':
-                            logspectrum = 10*np.log10(list_subradials[i][j].values[k])
+                            logspectrum = 10 * np.log10(list_subradials[i][j].values[k])
                             thresh = threshold_func(rranges)
-                            thresh =  np.tile(thresh,(logspectrum.shape[1],1)).T
+                            thresh =  np.tile(thresh,
+                                              (logspectrum.shape[1],1)).T
                             list_subradials[i][j].values[k][logspectrum < thresh] = np.nan
                         else:
                             list_subradials[i][j].values[k][mask] = np.nan
@@ -755,40 +834,9 @@ def cut_at_sensitivity(list_subradials):
         for i, subradial in enumerate(list_subradials): # Loop on simple list
             rranges = (CONFIG['radar']['radial_resolution'] *
                        np.arange(len(subradial.dist_profile)))
-            mask = 10*np.log10(subradial.values['ZH']) < threshold_func(rranges)
+            mask = 10 * np.log10(subradial.values['ZH']) < threshold_func(rranges)
             for k in subradial.values.keys():
                 if k in constants.SIMULATED_VARIABLES:
                     list_subradials[i].values[k][mask] = np.nan
     return list_subradials
 
-def get_diameter_from_rad_vel(list_hydrom, phi,theta,U,V,W,rho_corr):
-    theta = np.deg2rad(theta)
-    phi = np.deg2rad(phi)
-
-    wh = 1./rho_corr*(W+(U*np.sin(phi)+V*np.cos(phi))/np.tan(theta)\
-        -constants.VARRAY/np.sin(theta))
-
-    idx = np.where(wh>=0)[0] # We are only interested in positive fall speeds
-
-    wh = wh[idx]
-
-    hydrom_types = list_hydrom.keys()
-
-    D = np.zeros((len(idx), len(hydrom_types)), dtype='float32')
-
-    # Get D bins from V bins
-    for i,h in enumerate(list_hydrom.keys()): # Loop on hydrometeors
-        D[:,i] = list_hydrom[h].get_D_from_V(wh)
-        # Threshold to valid diameters
-        D[D>=list_hydrom[h].d_max]=list_hydrom[h].d_max
-        D[D<=list_hydrom[h].d_min]=list_hydrom[h].d_min
-
-    # Array of left bin limits
-    Da = np.minimum(D[0:-1,:],D[1:,:])
-    # Array of right bin limits
-    Db = np.maximum(D[0:-1,:],D[1:,:])
-
-    # Get indice of lines where at least one bin width is larger than 0
-    mask = np.where(np.sum((Db-Da) == 0.0,axis=1) < len(hydrom_types))[0]
-
-    return Da[mask,:], Db[mask,:],idx[mask]

@@ -25,7 +25,7 @@ from cosmo_pol.constants import global_constants as constants
 
 
 def compute_trajectory_radial(range_vec, elevation_angle, coords_radar,
-                         refraction_method, N=0):
+                         refraction_method, N = 0):
     '''
     Computes the trajectory of a radar beam along a specified radial by
     calling the appropriate subfunction depending on the desired method
@@ -217,7 +217,7 @@ def _ref_4_3(range_vec, elevation_angle, coords_radar):
 
     return s,h,e
 
-def get_GPM_refraction(elevation):
+def compute_trajectory_GPM(elevation):
     '''
     Computes the trajectory of a GPM beam along a specified radial,
     currently atmospheric refraction is not taken into account

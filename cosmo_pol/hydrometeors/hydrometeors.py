@@ -25,12 +25,12 @@ from scipy.interpolate import interp1d
 from textwrap import dedent
 
 # Local imports
-from cosmo_pol.hydrometeors import (dielectric_ice, dielectric_water,
+from .dielectric import (dielectric_ice, dielectric_water,
                                     dielectric_mixture)
 
-from cosmo_pol.constants import global_constants as constants
 from cosmo_pol.constants import constants_1mom
 from cosmo_pol.constants import constants_2mom
+from cosmo_pol.constants import global_constants as constants
 from cosmo_pol.utilities import vlinspace
 
 
@@ -322,8 +322,8 @@ class _MeltingHydrometeor(object):
         self.scheme = scheme # Microphyscal scheme
 
         self.equivalent_rain = Rain(scheme)  # Rain class instance
-        self.equivalent_solid = None  # Solid phase hydrometeor class instance
-
+        self.equivalent_solid = Graupel(scheme)  # Solid phase hydrometeor class instance
+        self.nbins_D = None
         self.prop_factor = None # see set_psd
 
     @property
@@ -398,7 +398,7 @@ class _MeltingHydrometeor(object):
             V: the terminal fall velocities, same dimensions as D
         """
         V_rain = self.equivalent_rain.get_V(D)
-        V_dry = self.equivalent_dry.get_V(D)
+        V_dry = self.equivalent_solid.get_V(D)
         # See Frick et al. 2013, for the phi function
         phi = 0.246 * self.f_wet + (1 - 0.246)*self.f_wet**7
 
@@ -420,7 +420,7 @@ class _MeltingHydrometeor(object):
             n: the integratal of the PSD: N(D)
         """
         # I don't think there is any analytical solution for this hydrometeor
-        D = vlinspace(self.d_min,self.d_max,constants.N_BINS_D)
+        D = vlinspace(self.d_min,self.d_max, self.nbins_D)
         dD = D[:,1] - D[:,0]
 
         N = self.get_N(D)
@@ -440,7 +440,7 @@ class _MeltingHydrometeor(object):
             the total mass in kg
         """
         # I don't think there is any analytical solution for this hydrometeor
-        D = vlinspace(self.d_min, self.d_max, constants.N_BINS_D)
+        D = vlinspace(self.d_min, self.d_max, self.nbins_D)
         dD = D[:,1] - D[:,0]
 
         if np.isscalar(self.d_min):
@@ -460,7 +460,7 @@ class _MeltingHydrometeor(object):
         """
         if not self.vd_interpolator:
             D_all = np.linspace(np.min(self.d_min),np.max(self.d_max),
-                            constants.N_BINS_D)
+                            self.nbins_D)
             V_all = np.squeeze(self.get_V(D_all))
             self.vd_interpolator = interp1d(V_all, D_all,
                                             bounds_error= False,
@@ -625,13 +625,13 @@ class Rain(_Hydrometeor):
             self.d_min = constants_1mom.D_MIN_R
 
         # Power-law parameters
-        self.am = (constants_1mom.AM_R if self.scheme == '1mom'
+        self.a = (constants_1mom.AM_R if self.scheme == '1mom'
                   else constants_2mom.AM_R)
-        self.bm = (constants_1mom.BM_R if self.scheme == '1mom'
+        self.b = (constants_1mom.BM_R if self.scheme == '1mom'
                   else constants_2mom.BM_R)
-        self.av = (constants_1mom.AV_R if self.scheme == '1mom'
+        self.alpha = (constants_1mom.AV_R if self.scheme == '1mom'
                       else constants_2mom.AV_R)
-        self.bv = (constants_1mom.BV_R if self.scheme == '1mom'
+        self.beta = (constants_1mom.BV_R if self.scheme == '1mom'
                      else constants_2mom.BV_R)
 
         # PSD parameters
@@ -810,14 +810,14 @@ class Snow(_Solid):
             self.d_min = constants_1mom.D_MIN_S
 
         # Power-law parameters
-        self.a = (constants_1mom.A_S if self.scheme == '1mom'
-                  else constants_2mom.A_S)
-        self.b = (constants_1mom.B_S if self.scheme == '1mom'
-                  else constants_2mom.B_S)
-        self.alpha = (constants_1mom.ALPHA_S if self.scheme == '1mom'
-                      else constants_2mom.ALPHA_S)
-        self.beta = (constants_1mom.BETA_S if self.scheme == '1mom'
-                     else constants_2mom.BETA_S)
+        self.a = (constants_1mom.AM_S if self.scheme == '1mom'
+                  else constants_2mom.AM_S)
+        self.b = (constants_1mom.BM_S if self.scheme == '1mom'
+                  else constants_2mom.BM_S)
+        self.alpha = (constants_1mom.AV_S if self.scheme == '1mom'
+                      else constants_2mom.AV_S)
+        self.beta = (constants_1mom.BV_S if self.scheme == '1mom'
+                     else constants_2mom.BV_S)
 
         # PSD parameters
         self.lambda_ = None
@@ -912,7 +912,7 @@ class Snow(_Solid):
             mu: shape parameter of the gamma pdf
 
         """
-        lambd = constants.A_AR_LAMBDA_AGG*D**constants.B_AR_LAMBDA_AGG
+        lambd = constants.AM_AR_LAMBDA_AGG*D**constants.B_AR_LAMBDA_AGG
         loc = np.ones(len(lambd))
         mu = constants.A_AR_MU_AGG*D**constants.B_AR_MU_AGG
         return lambd, loc, mu
@@ -961,10 +961,14 @@ class Graupel(_Solid):
             self.d_min = constants_1mom.D_MIN_G
 
         # Power-law parameters
-        self.a = (constants_1mom.A_G if self.scheme == '1mom' else constants_2mom.A_G)
-        self.b = (constants_1mom.B_G if self.scheme == '1mom' else constants_2mom.B_G)
-        self.alpha = (constants_1mom.ALPHA_G if self.scheme == '1mom' else constants_2mom.ALPHA_G)
-        self.beta = (constants_1mom.BETA_G if self.scheme == '1mom' else constants_2mom.BETA_G)
+        self.a = (constants_1mom.AM_G if self.scheme == '1mom'
+                  else constants_2mom.AM_G)
+        self.b = (constants_1mom.BM_G if self.scheme == '1mom'
+                  else constants_2mom.BM_G)
+        self.alpha = (constants_1mom.AV_G if self.scheme == '1mom'
+                      else constants_2mom.AV_G)
+        self.beta = (constants_1mom.BV_G if self.scheme == '1mom'
+                     else constants_2mom.BV_G)
 
         # PSD parameters
 
@@ -1095,10 +1099,10 @@ class Hail(_Solid):
             self.d_min = constants_1mom.D_MIN_H
 
         # Power-law parameters
-        self.a = constants_2mom.A_H
-        self.b = constants_2mom.B_H
-        self.alpha = constants_2mom.ALPHA_H
-        self.beta = constants_2mom.BETA_H
+        self.a = constants_2mom.AM_H
+        self.b = constants_2mom.BM_H
+        self.alpha = constants_2mom.AV_H
+        self.beta = constants_2mom.BV_H
 
         # PSD parameters
         self.lambda_ = None
@@ -1160,10 +1164,14 @@ class IceParticle(_Solid):
             self.d_min = constants_1mom.D_MIN_I
 
         # Power-law parameters
-        self.a = (constants_1mom.A_I if self.scheme == '1mom' else constants_2mom.A_I)
-        self.b = (constants_1mom.B_I if self.scheme == '1mom' else constants_2mom.B_I)
-        self.alpha = (constants_1mom.ALPHA_I if self.scheme == '1mom' else constants_2mom.ALPHA_I)
-        self.beta = (constants_1mom.BETA_I if self.scheme == '1mom' else constants_2mom.BETA_I)
+        self.a = (constants_1mom.AM_I if self.scheme == '1mom'
+                  else constants_2mom.AM_I)
+        self.b = (constants_1mom.BM_I if self.scheme == '1mom'
+                  else constants_2mom.BM_I)
+        self.alpha = (constants_1mom.AV_I if self.scheme == '1mom'
+                      else constants_2mom.AV_I)
+        self.beta = (constants_1mom.BV_I if self.scheme == '1mom'
+                     else constants_2mom.BV_I)
 
         # PSD parameters
         self.lambda_ = None
@@ -1204,7 +1212,8 @@ class IceParticle(_Solid):
                 x = self.lambda_[:,None] * D / 1000.
                 return self.N0[:,None] * constants_1mom.PHI_23_I(x)
             else:
-                return self.N0[:,None] *D**self.mu*np.exp(-self.lambda_[:,None]*D**self.nu)
+                return (self.N0[:,None] * D ** self.mu *
+                        np.exp(-self.lambda_[:,None]*D**self.nu))
 
         except:
             raise
@@ -1221,7 +1230,7 @@ class IceParticle(_Solid):
             n: the integratal of the PSD: N(D)
         """
         # Again no analytical solution here
-        D = np.linspace(self.d_min, self.d_max, constants.N_BINS_D)
+        D = np.linspace(self.d_min, self.d_max, self.nbins_D)
         dD = D[1] - D[0]
         N = self.get_N(D)
         v =  np.sum(N * self.get_V(D)) * dD
@@ -1256,7 +1265,7 @@ class IceParticle(_Solid):
         return (QM/a) ** (1/b)
 
 
-    def set_psd(self,arg1,arg2):
+    def set_psd(self, arg1, arg2):
         """
         Sets the particle size distribution parameters
         Args:
@@ -1275,22 +1284,23 @@ class IceParticle(_Solid):
         # if two moments scheme, arg1 =  QNI, arg2 = Q(M)I
 
         QM = arg2.astype(np.float64)
+
         if self.scheme == '1mom':
             T = arg1
-            Q2 = self.get_mom_2(T,QM/constants_1mom.B_I)
+            Q2 = self.get_mom_2(T,QM/constants_1mom.BM_I)
             N0 = Q2**((self.b + 1)/(self.b - 2)) * QM**((2 + 1)/(2 - self.b))
             N0 /= 10**5 # From m^-1 to mm^-1
 
             lambda_ = (Q2/QM) ** (1/(self.b - 2))
 
             # Apply correction factor to match third moment
-            D = np.linspace(self.d_min, self.d_max, constants.N_BINS_D)
+            D = np.linspace(self.d_min, self.d_max, self.nbins_D)
 
             x = lambda_[:,None] * D.T / 1000
 
             N = N0[:,None] * constants_1mom.PHI_23_I(x)
 
-            QM_est = np.nansum(self.a*D**self.b*N, axis = 1) *(D[1]-D[0])
+            QM_est = np.nansum(self.a * D ** self.b * N, axis = 1) * (D[1]-D[0])
 
             N0 = N0/QM_est * QM
 
@@ -1349,7 +1359,7 @@ class IceParticle(_Solid):
 class MeltingSnow(_MeltingHydrometeor):
     def __init__(self, scheme):
         super(MeltingSnow, self).__init__(scheme)
-        self.equivalent_dry = Snow(scheme)
+        self.equivalent_solid = Snow(scheme)
 
     def set_psd(self, *args):
         """
@@ -1373,7 +1383,7 @@ class MeltingSnow(_MeltingHydrometeor):
                     T = np.array(args[0])
                     q = np.array(args[1])
                     fw =  np.array(args[2])
-                    self.equivalent_dry.set_psd(T,q)
+                    self.equivalent_solid.set_psd(T,q)
                     self.equivalent_rain.set_psd(q)
                     self.f_wet = fw
 
@@ -1396,8 +1406,8 @@ class MeltingGraupel(_MeltingHydrometeor):
     Melting graupel class
     '''
     def __init__(self, scheme):
-        super(MeltingSnow, self).__init__(scheme)
-        self.equivalent_dry = Graupel(scheme)
+        super(MeltingGraupel, self).__init__(scheme)
+        self.equivalent_solid = Graupel(scheme)
 
     def set_psd(self, *args):
         """
@@ -1420,7 +1430,7 @@ class MeltingGraupel(_MeltingHydrometeor):
                 if self.scheme == '1mom':
                     q = np.array(args[0])
                     fw =  np.array(args[1])
-                    self.equivalent_graupel.set_psd(q)
+                    self.equivalent_solid.set_psd(q)
                     self.equivalent_rain.set_psd(q)
                     self.f_wet = fw
 

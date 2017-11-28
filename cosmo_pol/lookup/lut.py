@@ -44,20 +44,20 @@ def load_all_lut(scheme, list_hydrom, frequency, scattering_method):
     '''
 
     # Get current directory
-    folder_lut = os.path.dirname(os.path.realpath(__file__))
+    folder_lut = os.path.dirname(os.path.realpath(__file__))+'/'
     lut_sz = {}
 
-    default_lut = folder_lut +'/lut_tmarix_masc/'
+    default_lut = folder_lut +'/lut_tmatrix_masc/'
     if scattering_method == 'tmatrix':
         folder_lut = folder_lut +'/lut_tmatrix/'
-    elif scattering_method == 'tmarix_masc':
-        folder_lut = folder_lut +'/lut_tmarix_masc/'
+    elif scattering_method == 'tmatrix_masc':
+        folder_lut = folder_lut +'/lut_tmatrix_masc/'
     elif scattering_method == 'dda':
         folder_lut = folder_lut +'/lut_dda/'
 
     for h in list_hydrom:
         freq_str = str(frequency).replace('.','_')
-        name = 'lut_SZ_'+h+'_'+freq_str+'_'+scheme+'.lut'
+        name = 'lut_SZ_' + h + '_' + freq_str + '_' + scheme + '.lut'
         try:
             if scattering_method == 'dda' and h in ['R','H']:
                 lut_sz[h] = load_lut(default_lut + name)
@@ -143,7 +143,7 @@ def load_lut(filename):
 
         if name == 'axes_names':
             data = data.all()
-        setattr(lut, filename, data)
+        setattr(lut, name, data)
 
     tar.close()
     return lut

@@ -41,6 +41,7 @@ MAX_MODEL_HEIGHT: The maximum height above which simulated radar gates are
     GPM beam, because GPM is at 407 km from the Earth, so there is no
     need at all to simulate all radar gates (this would make more than
     3000 gates at Ka band...)
+T0: freezing temperature of water in K
 A_AR_LAMBDA_AGG: intercept parameter a in the power-law relation defining the
     value of the Lambda in the gamma distribution for aggregate aspect-ratios
     as a function of diameter
@@ -108,6 +109,7 @@ class Constant_class(object):
         self.RHO_0 = 1.225
         self.KE = 4./3.
         self.MAX_MODEL_HEIGHT = 35000
+        self.T0 = 273.15
 
         #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
         # Power laws based on MASC observations
@@ -140,14 +142,14 @@ class Constant_class(object):
         self.GPM_KU_FREQUENCY = 13.6
         self.GPM_3DB_BEAMWIDTH = 0.5
 
-        if CONFIG != {}:
+        if CONFIG != None:
             #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
             # Radar parameters
             self.NVEL = self.C / (4*1E-6 * CONFIG['radar']['PRI'] *
                                   CONFIG['radar']['frequency']*1E09)
-            self.VRES=2*self.NVEL/CONFIG['radar']['FFT_length']
-            self.VARRAY=np.arange(-self.NVEL,self.NVEL+self.VRES,self.VRES)
-            self.WAVELENGTH=self.C/(CONFIG['radar']['frequency']*1E09)*1000
+            self.VRES = 2*self.NVEL/CONFIG['radar']['FFT_length']
+            self.VARRAY = np.arange(-self.NVEL,self.NVEL+self.VRES,self.VRES)
+            self.WAVELENGTH = self.C/(CONFIG['radar']['frequency']*1E09)*1000
             self.PULSE_WIDTH = 2*CONFIG['radar']['radial_resolution']
             try:
                 if len(CONFIG['radar']['sensitivity']) == 3:
@@ -161,15 +163,18 @@ class Constant_class(object):
             except:
                 # If it fails we won't need it anyway
                 pass
-            if CONFIG['radar']['type']=='ground':
+            if CONFIG['radar']['type'] == 'ground':
                 self.RANGE_RADAR=np.arange(
-                   CONFIG['radar']['radial_resolution']/2,
+                   CONFIG['radar']['radial_resolution']/2.,
                    CONFIG['radar']['range'],
                    CONFIG['radar']['radial_resolution'])
 
 
 
     def update(self):
+        global CONFIG
+        from cosmo_pol.config import cfg # Update config to current one
+        CONFIG = cfg.CONFIG
         self.__init__()
 
 global_constants = Constant_class()

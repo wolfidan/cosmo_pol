@@ -24,13 +24,12 @@ from textwrap import dedent
 
 
 # Local imports
-from cosmo_pol.interpolation import (get_GPM_refraction,
+from cosmo_pol.interpolation import (compute_trajectory_GPM,
                                      compute_trajectory_radial,
                                      Radial, melting,
                                      gautschi_points_and_weights,
                                      get_all_radar_pts)
 
-from cosmo_pol.config import CONFIG
 from cosmo_pol.constants import global_constants as constants
 from cosmo_pol.utilities import nansum_arr, sum_arr, vector_1d_to_polar
 
@@ -49,18 +48,18 @@ def integrate_radials(list_subradials):
     num_subradials = len(list_subradials)
     list_variables = list_subradials[0].values.keys()
 
-    integrated_variables={}
+    integrated_variables = {}
     for k in list_variables:
-        integrated_variables[k] = np.nan
+        integrated_variables[k] = np.array([np.nan])
         sum_weights=0
         for i in list_subradials:
-            sum_weights+=i.GH_weight
+            sum_weights += i.quad_weight
         for i in list_subradials:
             integrated_variables[k] = nansum_arr(integrated_variables[k],
-                                      i.values[k] * i.GH_weight / sum_weights)
+                                i.values[k] * i.quad_weight / sum_weights)
 
     # Get index of central beam
-    idx_0 = int(num_subradials/2)
+    idx_0 = int(num_subradials / 2.)
 
     # Sum the mask of all beams to get overall average mask
     mask = np.zeros(num_subradials,)
@@ -114,16 +113,13 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
         list_subradials: a list of Radial class instances containing all
             subradials corresponding to all quadrature points
                          defined along the specified radial
-        list_refraction: outputs all refraction tuples (s,h,e) computed for the
-            subradials, can be used in the next call to the
-            get_interpolated_radial function, but ONLY if the
-            elevation angle is conserved!
     '''
 
-    list_variables=dic_variables.values()
-    keys=dic_variables.keys()
+    list_variables = dic_variables.values()
+    keys = dic_variables.keys()
 
     # Get options
+    from cosmo_pol.config.cfg import CONFIG
     bandwidth_3dB = CONFIG['radar']['3dB_beamwidth']
     integration_scheme = CONFIG['integration']['scheme']
     refraction_method = CONFIG['refraction']['scheme']
@@ -243,7 +239,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
         pts_ver, weights_ver=np.polynomial.legendre.leggauss(nv_GH)
         pts_ver=pts_ver*bounds
 
-        power_sq_pts = (vector_1d_to_polar(angles,power_sq,pts_hor,
+        power_sq_pts = (vector_1d_to_polar(angles, power_sq, pts_hor,
                                                      pts_ver).T)
         weights = power_sq_pts * np.outer(weights_hor,weights_ver)
         weights *= np.abs(np.cos(np.deg2rad(pts_ver)))
@@ -364,7 +360,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
 
             for pt in pts_ver:
                 if CONFIG['radar']['type'] == 'GPM':
-                    s, h, e = get_GPM_refraction(pt+elevation)
+                    s, h, e = compute_trajectory_GPM(pt+elevation)
                 else:
                     s, h, e = compute_trajectory_radial(
                                                   rranges,
@@ -444,7 +440,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
             if weights[i] >= threshold:
 
                 if CONFIG['radar']['type'] == 'GPM':
-                    s, h, e = get_GPM_refraction(list_pts[i][1])
+                    s, h, e = compute_trajectory_GPM(list_pts[i][1])
                 else:
                     s, h, e = compute_trajectory_radial(rranges,
                                                         list_pts[i][1],
@@ -452,7 +448,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
                                                         refraction_method,
                                                         N)
 
-                lats,lons,list_vars = trilin_interp_radial(list_variables,
+                lats, lons, list_vars = trilin_interp_radial(list_variables,
                                                           list_pts[i][0],
                                                           s,
                                                           h)
@@ -476,21 +472,21 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
                     dic_beams[keys[k]]=bi # Create dictionary
 
                 subradial = Radial(dic_beams,
-                              mask_beam,
-                              lats,
-                              lons,
-                              s,
-                              h,
-                              e,
-                              list_pts[i],
-                              weights[i])
+                                   mask_beam,
+                                   lats,
+                                   lons,
+                                   s,
+                                   h,
+                                   e,
+                                   list_pts[i],
+                                   weights[i])
 
                 if has_melting:
                     subradial = melting(subradial)
 
                 list_subradials.append(subradial)
 
-    return list_subradials, list_refraction
+    return list_subradials
 
 def trilin_interp_radial(list_vars, azimuth, distances_profile, heights_profile):
 
@@ -516,6 +512,7 @@ def trilin_interp_radial(list_vars, azimuth, distances_profile, heights_profile)
 
 
     # Get position of virtual radar from user configuration
+    from cosmo_pol.config.cfg import CONFIG
     radar_pos = CONFIG['radar']['coords']
 
     # Initialize WGS84 geoid
@@ -587,7 +584,7 @@ def trilin_interp_radial(list_vars, azimuth, distances_profile, heights_profile)
                             llc_COSMO,
                             res_COSMO)
 
-        rad_interp_values = get_all_radar_pts(arguments_c_code)
+        rad_interp_values = get_all_radar_pts(*arguments_c_code)
         interp_data.append(rad_interp_values[1][:])
 
     return lats_rad, lons_rad, interp_data

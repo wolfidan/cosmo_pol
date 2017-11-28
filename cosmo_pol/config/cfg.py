@@ -21,7 +21,8 @@ import re
 from textwrap import dedent
 
 # Local imports, see utilities.py for the definition of Range and TypeList
-from cosmo_pol.utilities import (optimize_gaussians, Range, TypeList)
+from cosmo_pol.utilities import ( Range, TypeList)
+from .antenna_fit import optimize_gaussians
 
 '''
 Initialize CONFIG, which is a global variable, because it needs to be
@@ -30,7 +31,7 @@ pythonic way of doing it, but I couldn't find a better way...) '
 '''
 
 global CONFIG
-CONFIG = {}
+CONFIG = None
 
 '''
 Defines the defaults values in a dictionnary, if a field is present in
@@ -58,13 +59,12 @@ DEFAULTS={
         'n_gaussians':7,\
         'antenna_diagram': None,\
         'weight_threshold':1.,\
-        'nbins_D':1024,\
         'nr_GH':7,\
         'na_GL':7},\
     'doppler':
         {'scheme':1,\
         'turbulence_correction':0,
-        'antenna_correction':0},\
+        'motion_correction':0},\
     'microphysics':
         {'scheme':'1mom',\
          'with_melting': 0,\
@@ -92,14 +92,13 @@ VALID_VALUES={
                         float],\
         '3dB_beamwidth': Range(0.1,10.),\
          'K_squared': [float, None],
-         'antenna_speed': Range(1E-6,10)},\
+         'antenna_speed': Range(1E-6,10.)},\
     'refraction':
         {'scheme':[1,2]},\
     'integration':
         {'scheme':[1,2,3,4,'ml'],\
         'nv_GH': range(1,31,2),\
         'nh_GH': range(1,31,2),\
-        'nbins_D': float,\
         'n_gaussians': range(1,13,2),\
         'weight_threshold':  Range(0.0001,1.),\
         'nr_GH': range(1,31,2),\
@@ -107,7 +106,7 @@ VALID_VALUES={
     'doppler':
         {'scheme':[1,2,3],\
         'turbulence_correction':[0,1],
-        'antenna_correction':[0,1]},\
+        'motion_correction':[0,1]},\
     'microphysics':
         {'scheme':['1mom','2mom'],\
         'with_ice_crystals':[0,1],\
@@ -169,15 +168,17 @@ def init(options_file):
         with open(options_file, 'r') as ymlfile:
             CONFIG = yaml.load(ymlfile)
     except Exception as e:
-
         CONFIG = copy.deepcopy(DEFAULTS)
-        print('Could not find or read '+options_file+' file, using default options')
-        print('The error was: \n"')
+        msg = '''
+        'Could not find or read {:s}, using default options...
+        The error was:
+        '''
+        print(dedent(msg))
         print(e)
-        print('"')
+
         return
 
-    CONFIG = sanity_check(CONFIG)
+    return CONFIG
 
 def sanity_check(config):
     '''
@@ -205,7 +206,7 @@ def sanity_check(config):
 
                 if not flag_ok:
                     valid = VALID_VALUES[section][key]
-                    if type(valid == list):
+                    if type(valid) == list:
                         valid_str = [str(l) for l in valid]
                     else:
                         valid_str = valid
@@ -240,7 +241,7 @@ def sanity_check(config):
             x = data[:,0]
             y = 10*np.log10((10**(0.1*data[:,1]))**2)
             gauss_params = optimize_gaussians(x, y,
-                                              config[section]['n_gaussians'])
+                                      config['integration']['n_gaussians'])
             config['integration']['antenna_params'] = gauss_params
             print('Fit was successful !\n')
         except:

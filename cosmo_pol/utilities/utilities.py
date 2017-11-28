@@ -16,7 +16,8 @@ __email__ = "daniel.wolfensberger@epfl.ch"
 import numpy as np
 np.seterr(divide='ignore') # Disable divide by zero error
 from textwrap import dedent
-
+from scipy.interpolate import interp1d
+from scipy.ndimage import map_coordinates
 
 BASIC_TYPES = [float, int, str]
 class Range(object):
@@ -237,8 +238,8 @@ def nansum_arr(x,y, cst = 0):
             pad_2.append((0,d))
             pad_1.append((0,0))
 
-    x = np.pad(x,pad_1,'constant',constant_values=cst)
-    y = np.pad(y,pad_2,'constant',constant_values=cst)
+    x = np.pad(x, pad_1, 'constant', constant_values = cst)
+    y = np.pad(y, pad_2, 'constant', constant_values = cst)
 
     z = np.nansum([x,y],axis=0)
     return z
@@ -264,6 +265,64 @@ def combine_subradials(list_of_subradials):
             print(dedent(msg))
             return
     return x
+
+def polar2cartesian(r, t, grid, x, y, order=3):
+    """
+    Converts a points of measurements in polar coordinates
+	to Cartesian coordinates using interpolation
+
+    Args:
+        r: the list of the range of all points
+		t: the list of the angle of all points (in radians)
+		grid: the points in the form of a regular 2D array
+		x: the x location in Cartesian coordinates where to
+			interpolate points
+		y: the y location in Cartesian coordinates where to
+			interpolate points
+    Returns:
+        The interpolate points at the x and y positions
+    """
+    X, Y = np.meshgrid(x, y)
+
+    new_r = np.sqrt(X*X+Y*Y)
+    new_t = np.arctan2(X, Y)+np.pi
+
+    ir = interp1d(r, np.arange(len(r)), bounds_error=False)
+    it = interp1d(t, np.arange(len(t)))
+
+    new_ir = ir(new_r.ravel())
+    new_it = it(new_t.ravel())
+
+    new_ir[new_r.ravel() > r.max()] = len(r)-1
+    new_ir[new_r.ravel() < r.min()] = 0
+
+    return map_coordinates(grid, np.array([new_it, new_ir]),
+                            order = order).reshape(new_r.shape)
+
+def vector_1d_to_polar(angles, values, x, y):
+    """
+    Performs a screw transformation of a 1D polar vector along
+	its center
+    Args:
+        angles: the angles of the 1D polar vector
+        values: the values of the 1D polar vector
+		x:
+		y:
+    Returns:
+        The array corresponding to the screw transform
+    """
+    midpt = int(np.floor(len(angles) / 2.))
+
+    r = angles[midpt:]
+    thet = [0,np.pi,2*np.pi]
+
+    pol = np.zeros((len(thet),len(r)))
+    pol[0,:] = values[midpt:]
+    pol[1,:] = values[0:midpt+1]
+    pol[1,:] = pol[1,::-1]
+    pol[2,:] = pol[0,:]
+
+    return  polar2cartesian(r,thet,pol,x,y)
 
 
 def row_stack(a1, a2):
