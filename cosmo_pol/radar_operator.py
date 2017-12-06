@@ -308,13 +308,6 @@ class RadarOperator(object):
             print('No model file has been loaded! Aborting...')
             return
 
-        if self.config['radar']['type'] != 'ground':
-            msg = '''
-            Vertical profiles only possible for ground radars, please use
-            get_GPM_swath
-            '''
-            print(dedent(msg))
-            return []
         # Needs to be done in order to deal with Multiprocessing's annoying limitations
         global dic_vars, N, lut_sz, output_variables
         dic_vars, N, lut_sz, output_variables = self.define_globals()
@@ -373,10 +366,6 @@ class RadarOperator(object):
         if np.isscalar(elevations):
             elevations=[elevations]
 
-        if self.config['radar']['type'] != 'ground':
-            print('PPI profiles only possible for ground radars, please use')
-            print(' get_GPM_swath instead')
-            return []
         # Needs to be done in order to deal with Multiprocessing's annoying limitations
         global dic_vars, N, lut_sz, output_variables
         dic_vars, N, lut_sz, output_variables = self.define_globals()
@@ -475,10 +464,7 @@ class RadarOperator(object):
         if np.isscalar(azimuths):
             azimuths=[azimuths]
 
-        if self.config['radar']['type'] != 'ground':
-            print 'RHI profiles only possible for ground radars, please use'
-            print ' get_GPM_swath instead'
-            return []
+
         # Needs to be done in order to deal with Multiprocessing's annoying limitations
         global dic_vars, N, lut_sz, output_variables
         dic_vars, N, lut_sz, output_variables=self.define_globals()
@@ -490,6 +476,7 @@ class RadarOperator(object):
             # Define elevation and ranges
             elevations = np.arange(elev_start, elev_stop + elev_step,
                                    elev_step)
+
 
         # Define  ranges
         rranges = constants.RANGE_RADAR
@@ -616,7 +603,9 @@ class RadarOperator(object):
 
                     # Update GPM position and range vector
                     cfg.CONFIG['radar']['range'] = params[2]
-                    cfg.CONFIG['radar']['coords'] = [params[3], params[4], params[5]]
+                    cfg.CONFIG['radar']['coords'] = [params[3],
+                                                    params[4],
+                                                    params[5]]
 
                     list_subradials = get_interpolated_radial(dic_vars,
                                                                 azimuth,

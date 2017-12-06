@@ -125,6 +125,13 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
     refraction_method = CONFIG['refraction']['scheme']
     has_melting = CONFIG['microphysics']['with_melting']
 
+    # Determine if radar is spaceborne or ground based
+    if CONFIG['radar']['coords'][2] > constants.MAX_MODEL_HEIGHT:
+        # If height of radar is above max height of COSMO, it is spaceborne
+        SPACEBORNE = True
+    else:
+        SPACEBORNE = False
+
     list_variables = dic_variables.values()
     keys = dic_variables.keys()
 
@@ -359,7 +366,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
             radar_pos = CONFIG['radar']['coords']
 
             for pt in pts_ver:
-                if CONFIG['radar']['type'] == 'GPM':
+                if SPACEBORNE:
                     s, h, e = compute_trajectory_GPM(pt+elevation)
                 else:
                     s, h, e = compute_trajectory_radial(
@@ -439,7 +446,7 @@ def get_interpolated_radial(dic_variables, azimuth, elevation, N = None,
         for i in range(len(list_pts)):
             if weights[i] >= threshold:
 
-                if CONFIG['radar']['type'] == 'GPM':
+                if SPACEBORNE:
                     s, h, e = compute_trajectory_GPM(list_pts[i][1])
                 else:
                     s, h, e = compute_trajectory_radial(rranges,
