@@ -73,7 +73,7 @@ def get_radar_observables(list_subradials, lut_sz):
     microphysics_scheme = CONFIG['microphysics']['scheme']
     with_ice_crystals = CONFIG['microphysics']['with_ice_crystals']
     melting = CONFIG['microphysics']['with_melting']
-    att_corr = CONFIG['microphysics']['attenuation']
+    att_corr = CONFIG['microphysics']['with_attenuation']
     radar_type = CONFIG['radar']['type']
     radial_res = CONFIG['radar']['radial_resolution']
     integration_scheme = CONFIG['integration']['scheme']
@@ -748,7 +748,7 @@ def spectral_width_motion(elevations):
     '''
     wavelength = constants.WAVELENGTH/100. # Get it in m
     bandwidth_3dB = CONFIG['radar']['3dB_beamwidth']
-    ang_vel = CONFIG['microphysics']['attenuation']
+    ang_vel = CONFIG['radar']['antenna_speed']
 
     std_motion = ((wavelength * ang_vel * np.cos(np.deg2rad(elevations))) /
                     (2 * np.pi * np.deg2rad(bandwidth_3dB)))

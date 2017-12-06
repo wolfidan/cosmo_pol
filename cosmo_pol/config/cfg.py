@@ -68,7 +68,7 @@ DEFAULTS={
         {'scheme':'1mom',\
          'with_melting': 0,\
          'with_ice_crystals':1,\
-         'attenuation': 1,\
+         'with_attenuation': 1,\
          'scattering':'tmatrix_masc'},\
     }
 
@@ -109,7 +109,7 @@ VALID_VALUES={
         {'scheme':['1mom','2mom'],\
         'with_ice_crystals':[0,1],\
         'with_melting':[0,1],\
-        'attenuation':[0,1],\
+        'with_attenuation':[0,1],\
         'scattering':['tmatrix_masc','tmatrix','dda']}\
     }
 
