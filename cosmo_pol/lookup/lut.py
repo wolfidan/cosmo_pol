@@ -326,7 +326,7 @@ class Lookup_table:
                 closest = np.floor((kwargs[k]-
                                     self.axes_limits[ax_idx][0])
                                     /self.axes_step[ax_idx])
-                closest = closest.astype(int)
+                closest = np.array(closest, dtype= int)
                 closest[closest < 0] = 0
                 closest[closest >= dim[ax_idx]] = dim[ax_idx] - 1
                 I[ax_idx] = closest

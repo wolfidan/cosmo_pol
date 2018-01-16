@@ -97,8 +97,9 @@ class _Hydrometeor(object):
             scheme = '1mom'
         self.precipitating = True
         self.scheme = scheme
-        self.d_max=None # Max diam in the integration over D
-        self.d_min=None # Min diam in the integration over D
+        self.d_max = None # Max diam in the integration over D
+        self.d_min = None # Min diam in the integration over D
+        self.nbins_D = 1024 # Number of diameter bins used in the numerical integrations
 
         # Power-law parameters
         self.a = None
@@ -318,12 +319,11 @@ class _MeltingHydrometeor(object):
         if scheme not in ['1mom','2mom']:
             scheme = '1mom'
 
-
+        self.nbins_D = 1024
         self.scheme = scheme # Microphyscal scheme
 
         self.equivalent_rain = Rain(scheme)  # Rain class instance
         self.equivalent_solid = Graupel(scheme)  # Solid phase hydrometeor class instance
-        self.nbins_D = None
         self.prop_factor = None # see set_psd
 
     @property
@@ -616,6 +616,7 @@ class Rain(_Hydrometeor):
 
         self.scheme = scheme
         self.sedi = (sedi if self.scheme == '2mom' else False)
+        self.nbins_D = 1024
 
         if self.scheme == '2mom':
             self.d_max = constants_2mom.D_MAX_R
@@ -801,6 +802,7 @@ class Snow(_Solid):
             scheme = '1mom'
 
         self.scheme = scheme
+        self.nbins_D = 1024
 
         if self.scheme == '2mom':
             self.d_max = constants_2mom.D_MAX_S
@@ -952,6 +954,7 @@ class Graupel(_Solid):
             scheme = '1mom'
 
         self.scheme = scheme
+        self.nbins_D = 1024
 
         if self.scheme == '2mom':
             self.d_max = constants_2mom.D_MAX_G
@@ -1090,6 +1093,7 @@ class Hail(_Solid):
             A Hail class instance (see below)
         """
         self.scheme = '2mom' # No 1-moment scheme for hail
+        self.nbins_D = 1024
 
         if self.scheme == '2mom':
             self.d_max = constants_2mom.D_MAX_H
@@ -1155,6 +1159,7 @@ class IceParticle(_Solid):
             An IceParticle class instance (see below)
         """
         self.scheme = scheme
+        self.nbins_D = 1024
 
         if self.scheme == '2mom':
             self.d_max = constants_2mom.D_MAX_I

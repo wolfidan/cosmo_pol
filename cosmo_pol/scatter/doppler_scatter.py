@@ -77,7 +77,7 @@ def get_radar_observables(list_subradials, lut_sz):
     radar_type = CONFIG['radar']['type']
     radial_res = CONFIG['radar']['radial_resolution']
     integration_scheme = CONFIG['integration']['scheme']
-
+    KW = CONFIG['radar']['K_squared']
 
     if radar_type == 'GPM':
         # For GPM no need to simulate Doppler variables
@@ -107,10 +107,15 @@ def get_radar_observables(list_subradials, lut_sz):
     dic_hydro = {}
     for h in hydrom_types:
         dic_hydro[h] = create_hydrometeor(h, microphysics_scheme)
-        if h in ['mS','mG','I']:
-            # Add info on number of bins to use for numerical integrations
-            nbins_D = lut_sz[h].value_table.shape[-2]
-            dic_hydro[h].nbins_D = nbins_D
+        # Add info on number of bins to use for numerical integrations
+        # Needs to be the same as in the lookup tables
+        _nbins_D = lut_sz[h].value_table.shape[-2]
+        _dmin = lut_sz[h].axes[2][:,0] if h in ['mS','mG'] else lut_sz[h].axes[2][0]
+        _dmax = lut_sz[h].axes[2][:,-1] if h in ['mS','mG'] else lut_sz[h].axes[2][-1]
+
+        dic_hydro[h].nbins_D = _nbins_D
+        dic_hydro[h].d_max = _dmax
+        dic_hydro[h].d_min = _dmin
 
     # Consider special case of 'ml' quadrature scheme, where most
     # quadrature points are used only near the melting layer edges
@@ -342,7 +347,8 @@ def get_radar_observables(list_subradials, lut_sz):
             beam_spectrum = get_doppler_spectrum(subrad,
                                                  dic_hydro,
                                                  lut_sz,
-                                                 hydros_to_process)
+                                                 hydros_to_process,
+                                                 KW)
 
             # Account for spectrum spread caused by turbulence and antenna motion
             add_specwidth = np.zeros(len(beam_spectrum))
@@ -373,10 +379,10 @@ def get_radar_observables(list_subradials, lut_sz):
 
                 beam_spectrum[idx_valid,:] -= ah_per_bin[:,None]
 
-            if not np.isscalar(subrad.weight):
-                beam_spectrum *= subrad.weight[:,None] # Multiply by quad weight
+            if not np.isscalar(subrad.quad_weight):
+                beam_spectrum *= subrad.quad_weight[:,None] # Multiply by quad weight
             else:
-                beam_spectrum *= subrad.weight # Multiply by quad weight
+                beam_spectrum *= subrad.quad_weight # Multiply by quad weight
 
 
             doppler_spectrum += beam_spectrum
@@ -391,7 +397,7 @@ def get_radar_observables(list_subradials, lut_sz):
     sz_integ[sz_integ == 0] = np.nan
 
     # Get radar observables
-    ZH, ZV, ZDR, RHOHV, KDP, AH, AV, DELTA_HV = get_pol_from_sz(sz_integ)
+    ZH, ZV, ZDR, RHOHV, KDP, AH, AV, DELTA_HV = get_pol_from_sz(sz_integ, KW)
 
     PHIDP = nan_cumsum(2 * KDP) * radial_res/1000. + DELTA_HV
 
@@ -469,12 +475,13 @@ def get_radar_observables(list_subradials, lut_sz):
 
     return radar_radial
 
-def get_pol_from_sz(sz):
+def get_pol_from_sz(sz, KW):
     '''
     Computes polarimetric radar observables from integrated scattering properties
     Args:
         sz: integrated scattering matrix, with an arbitrary number of rows
             (gates) and 12 columns (seet lut submodule)
+        KW: the refractive factor of water, usually 0.93 for radar applications
 
     Returns:
          z_h: radar refl. factor at hor. pol. in linear units [mm6 m-3]
@@ -494,14 +501,14 @@ def get_pol_from_sz(sz):
 
     # Horizontal reflectivity
     radar_xsect_h = 2*np.pi*(sz[:,0]-sz[:,1]-sz[:,2]+sz[:,3])
-    z_h=wavelength**4/(np.pi**5*K_squared)*radar_xsect_h
+    z_h = wavelength**4/(np.pi**5*K_squared)*radar_xsect_h
 
     # Vertical reflectivity
     radar_xsect_v = 2*np.pi*(sz[:,0]+sz[:,1]+sz[:,2]+sz[:,3])
     z_v = wavelength**4/(np.pi**5*K_squared)*radar_xsect_v
 
     # Differential reflectivity
-    zdr=radar_xsect_h/radar_xsect_v
+    zdr = radar_xsect_h/radar_xsect_v
 
     # Differential phase shift
     kdp = 1e-3 * (180.0/np.pi) * wavelength * (sz[:,10]-sz[:,8])
@@ -509,8 +516,8 @@ def get_pol_from_sz(sz):
     # Attenuation
     ext_xsect_h = 2 * wavelength * sz[:,11]
     ext_xsect_v = 2 * wavelength * sz[:,9]
-    ah= 4.343e-3 * ext_xsect_h
-    av= 4.343e-3 * ext_xsect_v
+    ah = 4.343e-3 * ext_xsect_h
+    av = 4.343e-3 * ext_xsect_v
 
     # Copolar correlation coeff.
     a = (sz[:,4] + sz[:,7])**2 + (sz[:,6] - sz[:,5])**2
@@ -575,7 +582,7 @@ def get_diameter_from_rad_vel(dic_hydro, phi, theta, U, V, W, rho_corr):
     return Da[mask,:], Db[mask,:], idx[mask]
 
 
-def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
+def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process, KW = 0.93):
     '''
     Computes the reflectivity within every bin of the Doppler spectrum
     Args:
@@ -587,6 +594,7 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
             be considered, for example if no melting is occuring on the
             subradial, mS and mG will not be in hydros_to_process, even
             thought they might be keys in dic_hydro
+        KW: the refractive factor of water, usually 0.93 for radar applications
     Returns:
          refl: array of size [n_gates, len_FFT] containing the reflectivities
              at every range gate and for every velocity bin
@@ -616,8 +624,8 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
 
     for i in range(n_gates):  # Loop on all radar gates
         if subrad.mask[i] == 0:
-            if not np.isscalar(subrad.weight):
-                if subrad.weight[i] == 0:
+            if not np.isscalar(subrad.quad_weight):
+                if subrad.quad_weight[i] == 0:
                     continue
             # Get parameters of the PSD (lambda or lambda/N0) for present hydrom
             # meteors
@@ -696,7 +704,7 @@ def get_doppler_spectrum(subrad, dic_hydro, lut_sz, hydros_to_process):
 
 
                 wavelength = constants.WAVELENGTH
-                refl[i,idx] *= wavelength**4/(np.pi**5*constants.KW**2)
+                refl[i,idx] *= wavelength**4/(np.pi**5*KW**2)
             except:
                 print('An error occured in the Doppler spectrum calculation...')
                 raise

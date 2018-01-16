@@ -98,7 +98,7 @@ except __builtin__.Exception:
 
 def get_refl(refl, Da, Db, rcs, D, N, step_D, Dmin):
     return _doppler_c.get_refl(refl, Da, Db, rcs, D, N, step_D, Dmin)
-
+get_refl = _doppler_c.get_refl
 # This file is compatible with both classic and new-style classes.
 
 

@@ -101,7 +101,10 @@ class RadarOperator(object):
         The best way to use this function is to retrieve the current
         configuration using  deepcopy: copy = copy.deepcopy(radop.config)
         then modify this copy: ex. copy['radar']['frequency'] = 9.41
-        and then call update_config(copy)
+        and then modify config.
+		config = deepcopy.copy(radop.config)
+		# change config
+		radop.config = config
 
         Args:
             config_dic: a dictionnary specifying the new configuration to
