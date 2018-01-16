@@ -1,6 +1,6 @@
-cosmo_pol/validation/
-cosmo_pol/lookup/quad_pts/
-cosmo_pol/lookup/lut_*/
+cosmo_pol/validation/*
+cosmo_pol/lookup/quad_pts/*
+cosmo_pol/lookup/lut_*/*
 swigger.sh
 *.pyc
 *.py~
