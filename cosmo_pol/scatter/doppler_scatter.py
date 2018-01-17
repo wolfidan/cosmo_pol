@@ -373,7 +373,7 @@ def get_radar_observables(list_subradials, lut_sz):
                 frac = sum_power[idx_valid] / (10**(0.1 *( sum_power_db[idx_valid] -
                                                    ah_per_beam[idx_valid])))
                 # Add computed attenuation
-                beam_spectrum[idx_valid,:] /= frac
+                beam_spectrum[idx_valid,:] /= frac[:,None]
 
 
             if not np.isscalar(subrad.quad_weight):
