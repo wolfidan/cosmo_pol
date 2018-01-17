@@ -403,8 +403,8 @@ def get_radar_observables(list_subradials, lut_sz):
 
     if att_corr:
         # AH and AV are in dB so we need to convert them to linear
-        ZV_ATT *= nan_cumprod(10**(-0.2*AV*(radial_res/1000.))) # divide to get dist in km
-        ZH_ATT *= nan_cumprod(10**(-0.2*AH*(radial_res/1000.)))
+        ZV_ATT -= nan_cumsum(AV)*(radial_res/1000.)# divide to get dist in km
+        ZH_ATT -= nan_cumsum(AH)*(radial_res/1000.)
         ZDR = ZH_ATT / ZV_ATT
 
 
@@ -436,8 +436,8 @@ def get_radar_observables(list_subradials, lut_sz):
     rad_obs['PHIDP'] = PHIDP
     rad_obs['RHOHV'] = RHOHV
     # Add attenuation at every gate
-    rad_obs['ATT_H'] = 10*np.log10(ZH) - 10*np.log10(ZH_ATT) # In dB
-    rad_obs['ATT_V'] = 10*np.log10(ZV) - 10*np.log10(ZV_ATT) # In dB
+    rad_obs['ATT_H'] = AH
+    rad_obs['ATT_V'] = AV
 
     if simulate_doppler:
         rad_obs['RVEL'] = rvel_avg
