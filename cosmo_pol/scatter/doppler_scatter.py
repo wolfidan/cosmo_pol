@@ -369,15 +369,12 @@ def get_radar_observables(list_subradials, lut_sz):
                 sum_power = np.nansum(beam_spectrum, axis = 1)
                 idx_valid = sum_power > 0
                 sum_power_db = 10 * np.log10(sum_power)
-                # Total attenuation in linear Z
-                diff = sum_power[idx_valid] - 10**(0.1 *( sum_power_db[idx_valid] -
-                                                   ah_per_beam[idx_valid]))
+                # Ratio between non-attenuated ZH and attenuated ZH
+                frac = sum_power[idx_valid] / (10**(0.1 *( sum_power_db[idx_valid] -
+                                                   ah_per_beam[idx_valid])))
+                # Add computed attenuation
+                beam_spectrum[idx_valid,:] /= frac
 
-                func = lambda a : diff - np.sum(np.minimum(a[:,None] ,
-                                              beam_spectrum[idx_valid]),axis=1)
-                ah_per_bin = fsolve(func, x0 = diff/len(beam_spectrum[0]))
-
-                beam_spectrum[idx_valid,:] -= ah_per_bin[:,None]
 
             if not np.isscalar(subrad.quad_weight):
                 beam_spectrum *= subrad.quad_weight[:,None] # Multiply by quad weight
