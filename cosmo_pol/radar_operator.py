@@ -26,13 +26,22 @@ from textwrap import dedent
 from cosmo_pol.radar import PyartRadop, get_GPM_angles, SimulatedGPM
 from cosmo_pol.config import cfg
 from cosmo_pol.interpolation import get_interpolated_radial, integrate_radials
-from cosmo_pol.scatter import get_radar_observables, cut_at_sensitivity
+
+
 from cosmo_pol.constants import global_constants as constants
 from cosmo_pol.lookup import load_all_lut
 from cosmo_pol.utilities import combine_subradials
 
 BASE_VARIABLES=['U','V','W','QR_v','QS_v','QG_v','QI_v','RHO','T']
 BASE_VARIABLES_2MOM=['QH_v','QNH_v','QNR_v','QNS_v','QNG_v','QNI_v']
+
+EXHAUSTIVE = False
+
+if EXHAUSTIVE:
+    from cosmo_pol.scatter.doppler_scatter_exhaustive import get_radar_observables, cut_at_sensitivity
+else:
+    from cosmo_pol.scatter import get_radar_observables, cut_at_sensitivity
+
 
 class RadarOperator(object):
     def __init__(self, options_file = None, output_variables = 'all'):
@@ -56,6 +65,7 @@ class RadarOperator(object):
         Returns:
             A RadarOperator class instance
         '''
+
 
         # delete the module's globals
         print('Reading options defined in options file')
@@ -377,7 +387,7 @@ class RadarOperator(object):
             az_step=self.config['radar']['3dB_beamwidth']
 
         # Define list of angles that need to be resolved
-        if azimuths == None:
+        if np.any(azimuths == None):
             # Define azimuths and ranges
             if az_start>az_stop:
                 azimuths=np.hstack((np.arange(az_start, 360., az_step),
@@ -473,7 +483,7 @@ class RadarOperator(object):
         dic_vars, N, lut_sz, output_variables=self.define_globals()
 
         # Define list of angles that need to be resolved
-        if elevations == None:
+        if np.any(elevations == None):
             if elev_step == None:
                 elev_step = self.config['radar']['3dB_beamwidth']
             # Define elevation and ranges
@@ -516,7 +526,7 @@ class RadarOperator(object):
 
         for a in azimuths: # Loop on the o
             func = partial(worker, event, a) # Partial function
-            list_beams = map(func,elevations)
+            list_beams = pool.map(func,elevations)
             list_sweeps.append(list_beams)
 
         pool.close()
@@ -535,7 +545,7 @@ class RadarOperator(object):
             'ranges':rranges,'pos_time':self.get_pos_and_time(),
             'data':list_sweeps}
 
-            pyrad_instance=PyartRadop('rhi',simulated_sweep)
+            pyrad_instance = PyartRadop('rhi',simulated_sweep)
             return  pyrad_instance
 
     def get_GPM_swath(self, GPM_file, band = 'Ku'):
@@ -641,7 +651,7 @@ class RadarOperator(object):
             c1 = np.repeat(coords_GPM[i,1],len(az[i]))
             c2 = np.repeat(coords_GPM[i,2],len(az[i]))
             worker_partial = partial(worker,event)
-            list_beams.extend(map(worker_partial,zip(az[i],
+            list_beams.extend(pool.map(worker_partial,zip(az[i],
                                                      elev[i],
                                                      rang[i],
                                                      c0,
@@ -668,13 +678,13 @@ class RadarOperator(object):
 
 
 if __name__ == '__main__':
-    files_c = pc.get_model_filenames('/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/')
-    a = RadarOperator(options_file='/data/cosmo_pol/option_files/MXPOL_RHI_PAYERNE.yml')
-    fu = a.config
-    fu['microphysics']['with_melting'] = 1
-    fu['integration']['scheme'] = 'ml'
-    a.config = fu
-    files_c = pc.get_model_filenames('/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/')
-    a.load_model_file(files_c['h'][60],cfilename = '/ltedata/COSMO/Multifractal_analysis/case2014040802_ONEMOM/lfsf00000000c')
 
-    r = a.get_RHI(azimuths=[3])
+    a = RadarOperator(options_file='/ltedata/Daniel/cosmo_pol/cosmo_pol/option_files/CH_PPI_dole_alias.yml')
+    files_c = pc.get_model_filenames('/ltedata/Daniel/cosmo_event_monika/')
+    a.load_model_file(files_c['h'][10],cfilename = files_c['c'][0])
+
+    r = a.get_PPI(elevations = 1)
+    from cosmo_pol.radar.pyart_wrapper import RadarDisplay
+    display = RadarDisplay(r, shift=(0.0, 0.0))
+    import matplotlib.pyplot as plt
+    display.plot('RVEL',0,vmin=-8.3,vmax=8.3, title='aliased RVEL',cmap = plt.cm.RdBu_r,shading = 'flat')

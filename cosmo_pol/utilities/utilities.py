@@ -139,6 +139,22 @@ def get_earth_radius(latitude):
     return np.sqrt(num / den)
 
 
+def aliasing(v, nyquist):
+    """
+        Performs aliasing of a radial velocity
+
+        Args:
+            v: the velocity to fold
+            nyquist: the nyquist velocity
+        Returns:
+            The folded radial velocity
+    """
+    theta = (v + nyquist)/(2*nyquist) * np.pi - np.pi/2.
+    theta_fold = np.arctan(np.tan(theta))
+    v_fold = (theta_fold + np.pi/2)*(2*nyquist)/np.pi - nyquist
+    return v_fold
+
+
 def vlinspace(a, b, N, endpoint=True):
     """
         Vectorized equivalent of numpy's linspace

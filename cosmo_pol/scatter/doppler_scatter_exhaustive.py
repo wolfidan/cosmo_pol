@@ -91,7 +91,7 @@ def get_radar_observables(list_subradials, lut_sz):
     idx_0 = int(num_beams/2) # Index of central subradial
     # Nb of gates in final integrated radial ( = max length of all subradials)
     n_gates = max([len(l.dist_profile) for l in list_subradials])
-    # Get elevation and az of center subradial (for nyquist velocity)
+    # Get elevation of center subradial (for nyquist velocity)
     elev_0 = list_subradials[idx_0].quad_pt[1]
     az_0 = list_subradials[idx_0].quad_pt[0]
 
@@ -128,9 +128,8 @@ def get_radar_observables(list_subradials, lut_sz):
         all_weights = np.array([b.quad_weight for b in list_subradials])
         total_weight_at_gates = np.sum(all_weights, axis = 0)
 
-    # Initialize integrated scattering matrix, see lut submodule for info
-    # about the 12 columns
-    sz_integ = np.zeros((n_gates,len(hydrom_types),12),
+    # Initialize integrated polarimetric variables
+    pol_var_integ = np.zeros((n_gates,len(hydrom_types),6),
                         dtype = 'float32') + np.nan
 
     # Doppler variables
@@ -256,15 +255,22 @@ def get_radar_observables(list_subradials, lut_sz):
                                     mode = 'constant',
                                     constant_values = False)
 
+
+            pol_var = get_pol_from_sz(sz_psd_integ, KW)
+
+            if att_corr:
+                pol_var[:,0] *= nan_cumprod(10**(-0.1*pol_var[:,4]*(radial_res/1000.))) # divide to get dist in km
+                pol_var[:,1] *= nan_cumprod(10**(-0.1*pol_var[:,5]*(radial_res/1000.))) # divide to get dist in km
+
             if not np.isscalar(subrad.quad_weight):
                 weights = (subrad.quad_weight[valid_data] /
                            total_weight_at_gates[valid_data])
-                sz_integ[valid_data,j,:] = nansum_arr(sz_integ[valid_data,j,:],
+                pol_var_integ[valid_data,j,:] = nansum_arr(pol_var_integ[valid_data,j,:],
                             weights[:,None] *
-                            sz_psd_integ)
+                            pol_var)
             else:
-                sz_integ[valid_data,j,:] = nansum_arr(sz_integ[valid_data,j,:],
-                                                      sz_psd_integ *
+                pol_var_integ[valid_data,j,:] = nansum_arr(pol_var_integ[valid_data,j,:],
+                                                      pol_var *
                                                       subrad.quad_weight)
             '''
             Part 4 : Doppler
@@ -397,23 +403,18 @@ def get_radar_observables(list_subradials, lut_sz):
     all subradials
     '''
 
-    sz_integ = np.nansum(sz_integ,axis=1)
-    sz_integ[sz_integ == 0] = np.nan
+    pol_var = np.nansum(pol_var_integ,axis=1)
 
     # Get radar observables
-    ZH, ZV, ZDR, RHOHV, KDP, AH, AV, DELTA_HV = get_pol_from_sz(sz_integ, KW)
+    ZH = pol_var[:,0]
+    ZV = pol_var[:,1]
+    KDP = pol_var[:,2]
+    DELTA_HV = pol_var[:,3]
+    AH = pol_var[:,4]
+    AV = pol_var[:,5]
 
+    ZDR = ZH/ZV
     PHIDP = nan_cumsum(2 * KDP) * radial_res/1000. + DELTA_HV
-
-    ZV_ATT = ZV.copy()
-    ZH_ATT = ZH.copy()
-
-    if att_corr:
-        # AH and AV are in dB so we need to convert them to linear
-        ZV_ATT *= nan_cumprod(10**(-0.1*AV*(radial_res/1000.))) # divide to get dist in km
-        ZH_ATT *= nan_cumprod(10**(-0.1*AH*(radial_res/1000.)))
-        ZDR = ZH_ATT / ZV_ATT
-
 
     if simulate_doppler:
         if doppler_scheme in [1, 2]:
@@ -435,7 +436,6 @@ def get_radar_observables(list_subradials, lut_sz):
 
             nyq = nyquist_velocity(elev_0, az_0)
             rvel_avg = aliasing(rvel_avg, nyq)
-
     ###########################################################################
 
     '''
@@ -450,7 +450,7 @@ def get_radar_observables(list_subradials, lut_sz):
     rad_obs['KDP'] = KDP
     rad_obs['DELTA_HV'] = DELTA_HV
     rad_obs['PHIDP'] = PHIDP
-    rad_obs['RHOHV'] = RHOHV
+    #rad_obs['RHOHV'] = RHOHV
     # Add attenuation at every gate
     rad_obs['ATT_H'] = AH
     rad_obs['ATT_V'] = AV
@@ -520,9 +520,6 @@ def get_pol_from_sz(sz, KW):
     radar_xsect_v = 2*np.pi*(sz[:,0]+sz[:,1]+sz[:,2]+sz[:,3])
     z_v = wavelength**4/(np.pi**5*K_squared)*radar_xsect_v
 
-    # Differential reflectivity
-    zdr = radar_xsect_h/radar_xsect_v
-
     # Differential phase shift
     kdp = 1e-3 * (180.0/np.pi) * wavelength * (sz[:,10]-sz[:,8])
 
@@ -532,16 +529,11 @@ def get_pol_from_sz(sz, KW):
     ah = 4.343e-3 * ext_xsect_h
     av = 4.343e-3 * ext_xsect_v
 
-    # Copolar correlation coeff.
-    a = (sz[:,4] + sz[:,7])**2 + (sz[:,6] - sz[:,5])**2
-    b = (sz[:,0] - sz[:,1] - sz[:,2] + sz[:,3])
-    c = (sz[:,0] + sz[:,1] + sz[:,2] + sz[:,3])
-    rhohv = np.sqrt(a / (b*c))
-
     # Backscattering differential phase
     delta_hv = np.arctan2(sz[:,5] - sz[:,6], -sz[:,4] - sz[:,7])
 
-    return z_h,z_v,zdr,rhohv,kdp,ah,av,delta_hv
+    pol_var = np.vstack((z_h, z_v, kdp, delta_hv,ah,av))
+    return pol_var.T
 
 def get_diameter_from_rad_vel(dic_hydro, phi, theta, U, V, W, rho_corr):
     '''

@@ -58,6 +58,7 @@ def load_all_lut(scheme, list_hydrom, frequency, scattering_method):
     for h in list_hydrom:
         freq_str = str(frequency).replace('.','_')
         name = 'lut_SZ_' + h + '_' + freq_str + '_' + scheme + '.lut'
+        print(folder_lut + name)
         try:
             if scattering_method == 'dda' and h in ['R','H']:
                 lut_sz[h] = load_lut(default_lut + name)

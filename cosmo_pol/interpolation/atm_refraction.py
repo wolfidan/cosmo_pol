@@ -19,7 +19,7 @@ from scipy.interpolate import interp1d
 from scipy.integrate import odeint
 
 # Local imports
-from  cosmo_pol.config import CONFIG
+from cosmo_pol.config.cfg import CONFIG
 from cosmo_pol.utilities import get_earth_radius
 from cosmo_pol.constants import global_constants as constants
 
@@ -92,6 +92,8 @@ def _ref_ODE(range_vec, elevation_angle, coords_radar, N):
         h: vector of heights above ground along the radial [m]
         e: vector of incident elevation angles along the radial [degrees]
     '''
+
+    from cosmo_pol.config.cfg import CONFIG
 
     # Get info about COSMO coordinate system
     proj_COSMO = N.attributes['proj_info']
@@ -229,6 +231,8 @@ def compute_trajectory_GPM(elevation):
         h: vector of heights above ground along the radial [m]
         e: vector of incident elevation angles along the radial [degrees]
     '''
+
+    from cosmo_pol.config.cfg import CONFIG
 
     # Get info about GPM satellite position
     latitude = CONFIG['radar']['coords'][0]

@@ -23,6 +23,7 @@ from textwrap import dedent
 # Local imports, see utilities.py for the definition of Range and TypeList
 from cosmo_pol.utilities import ( Range, TypeList)
 from .antenna_fit import optimize_gaussians
+from .nyquist_fit import nyquist_interpolator
 
 '''
 Initialize CONFIG, which is a global variable, because it needs to be
@@ -48,7 +49,9 @@ DEFAULTS={
         'sensitivity':[-5,10000],\
         '3dB_beamwidth':1.,\
         'K_squared': 0.93,
-        'antenna_speed': 0.2},\
+        'antenna_speed': 0.2,
+        'nyquist_velocity': None,\
+        'frequency': 9.41},\
      'refraction':
         {'scheme':1},\
     'integration':
@@ -89,7 +92,8 @@ VALID_VALUES={
         'sensitivity': [TypeList([float,int],[3]),TypeList([float,int],[2]),
                         float],\
         '3dB_beamwidth': Range(0.1,10.),\
-         'K_squared': [float, None],
+         'K_squared': [float, None],\
+         'nyquist_velocity': [None, str],\
          'antenna_speed': Range(1E-6,10.)},\
     'refraction':
         {'scheme':[1,2]},\
@@ -129,12 +133,15 @@ def _check_validity(input_value, valid_value):
     if type(input_value) == list:
         # If input is a list, check all elements in the list
         flag_valid = all([_check_validity(i,valid_value) for i in input_value])
+
     else:
         # Check if valid value is a type
         if type(valid_value) == builtins.type:
             flag_valid = type(input_value) == valid_value
         # Check if valid value is a list or a Range
-        elif type(valid_value) in [list, Range]:
+        elif type(valid_value) == list:
+            flag_valid = any([_check_validity(input_value,i) for i in valid_value])
+        elif type(valid_value) == Range:
             flag_valid = input_value in valid_value
         # Check if valid value is a string with a regex
         elif type(valid_value) == str and valid_value[0:5] == '-reg-':
@@ -249,7 +256,18 @@ def sanity_check(config):
             Please provide a comma-separated file with two columns, one for the
             angles, one for the power in dB
             '''.format(section)
-            print(msg)
+            print(dedent(msg))
+    if type(config['radar']['nyquist_velocity']) == str:
+        try:
+            interpolator = nyquist_interpolator(config['radar']['nyquist_velocity'])
+            config['radar']['nyquist_velocity'] = interpolator
+        except:
+            raise
+            msg = '''Could not fit an interpolator to the file provided for the nyquist velocity.
+                     Please provide a comma-separated file with three columns:
+                     one for the elevation angle, one for the azimuth angle and one for the nyquist velocity
+                  '''
+            print(dedent(msg))
 
     # Treat special case of missing K_squared
     if config['radar']['K_squared'] == None:

@@ -25,7 +25,7 @@ from scipy.interpolate import interp1d
 from textwrap import dedent
 
 # Local imports
-from .dielectric import (dielectric_ice, dielectric_water,
+from cosmo_pol.hydrometeors.dielectric import (dielectric_ice, dielectric_water,
                                     dielectric_mixture)
 
 from cosmo_pol.constants import constants_1mom
@@ -338,7 +338,7 @@ class _MeltingHydrometeor(object):
         self.d_min = (self._f_wet * self.equivalent_rain.d_min +
                           (1 - self._f_wet) * self.equivalent_solid.d_min)
 
-    def get_N(self,D):
+    def get_N_new(self,D):
         """
         Returns the PSD in mm-1 m-3
         Args:
@@ -353,9 +353,12 @@ class _MeltingHydrometeor(object):
             operator = lambda x,y:  np.multiply(x[:,None],y)
 
         try:
+            Rho_m = lambda d: self.get_M(d)/(np.pi/6 * d**3)
+            D_r = lambda d: (Rho_m(d)/constants.RHO_W)**(1/3.) * d
+            dD_r_over_dD = (D_r(D + 0.01) - D_r(D))/0.01
 
             c1 = operator(1 - self.f_wet, self.equivalent_solid.get_N(D)) + \
-                operator(self.f_wet, self.equivalent_rain.get_N(D))
+                operator(self.f_wet, self.equivalent_rain.get_N(D) *dD_r_over_dD)
             if self.prop_factor is not None:
                 c2 = operator(self.prop_factor, c1)
             else:
@@ -365,6 +368,27 @@ class _MeltingHydrometeor(object):
         except:
             raise
             print('Wrong dimensions of input')
+
+    def get_N(self,D):
+        if self.prop_factor is not None:
+            if len(self.prop_factor.shape) > D.ndim:
+                operator = lambda x,y: np.outer(x,y)
+            else:
+                operator = lambda x,y:  np.multiply(x[:,None],y)
+        else:
+            operator = lambda x,y: y
+
+        try:
+            Rho_m = lambda d: self.get_M(d)/(np.pi/6 * d**3)
+            D_r = lambda d: (Rho_m(d)/constants.RHO_W)**(1/3.) * d
+            dD_r_over_dD = (D_r(D + 0.01) - D_r(D))/0.01
+
+            return operator(self.prop_factor, self.equivalent_rain.get_N(D_r(D))) \
+                      * self.equivalent_rain.get_V(D_r(D)) / self.get_V(D) * dD_r_over_dD
+        except:
+            raise
+            print('Wrong dimensions of input')
+
 
     def get_M(self,D):
         """
@@ -397,12 +421,17 @@ class _MeltingHydrometeor(object):
         Returns:
             V: the terminal fall velocities, same dimensions as D
         """
-        V_rain = self.equivalent_rain.get_V(D)
+
+        Rho_m = lambda d: self.get_M(d)/(np.pi/6 * d**3)
+        D_r = lambda d: (Rho_m(d)/constants.RHO_W)**(1/3.) * d
+
+        V_rain = self.equivalent_rain.get_V(D_r(D))
         V_dry = self.equivalent_solid.get_V(D)
         # See Frick et al. 2013, for the phi function
         phi = 0.246 * self.f_wet + (1 - 0.246)*self.f_wet**7
 
-        if len(self.f_wet.shape) >= V_dry.ndim:
+
+        if len(self.f_wet.shape) > V_dry.ndim:
             operator = lambda x,y: np.outer(x,y)
         else:
             operator = lambda x,y:  np.multiply(x[:,None],y)
@@ -1254,7 +1283,7 @@ class IceParticle(_Solid):
             QM: mass concentration in kg/m3
 
         Returns:
-            The estimated moment of order 2 of the PSD
+            The estimated moment of orf_{\text{vol}}^{\text{water}} & =  f_{\text{wet}}^m \frac{\rho^{\text{water}}}{\rho^{m}} \\der 2 of the PSD
         """
         n = 3
         T = T - constants.T0 # Convert to celcius
@@ -1450,3 +1479,62 @@ class MeltingGraupel(_MeltingHydrometeor):
 
         else:
             raise ValueError('Invalid parameters, cannot set psd')
+
+if __name__ == '__main__':
+
+    ms = MeltingGraupel('1mom')
+
+    D = np.linspace(0.5,15,110)
+    ms.set_psd(np.array([0.01]),np.array([0.7]))
+
+    s = Graupel('1mom')
+
+    N = ms.get_N(D)
+    s.set_psd(np.array([0.01]))
+    N2 = s.get_N(D)
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(D,N2[0], D , N[0])
+#    fwet = np.linspace(0.01,0.99,120)
+#    D = np.linspace(0.5,15,110)
+#    all_frac = []
+#    for f in fwet:
+#        mg = MeltingGraupel('1mom')
+#        mg.f_wet = f
+#        ff = mg.get_fractions(D)
+#        all_frac.append(ff[0])
+#    all_frac_g = np.array(all_frac)
+#
+#    fwet = np.linspace(0.01,0.99,120)
+#    D = np.linspace(0.5,15,110)
+#    all_frac = []
+#    for f in fwet:
+#        mg = MeltingSnow('1mom')
+#        mg.f_wet = f
+#        ff = mg.get_fractions(D)
+#        all_frac.append(ff[0])
+#    all_frac_s = np.array(all_frac)
+#    import matplotlib.pyplot as plt
+#    plt.figure()
+#    plt.plot(D,all_frac_g[60])
+#    plt.plot(D,all_frac_s[60])
+#    plt.legend(['Graupel','Snow'])
+#    plt.grid()
+#
+#    plt.xlabel('Diameter [mm]')
+#    plt.ylabel('Volume fraction of water: vol. water / vol. hydrometeor [-]')
+#    plt.title('Wet fraction = 0.5 [-]')
+#    plt.savefig('ex_diam.pdf',bbox_inches='tight')
+#    plt.figure()
+#    plt.grid()
+#    plt.plot(fwet,all_frac_g[:,49])
+#    plt.plot(fwet,all_frac_s[:,49])
+#    plt.legend(['Graupel','Snow'])
+#    plt.xlabel('Wet fraction : mass water / mass hydrometeor [-]')
+#    plt.ylabel('Volume fraction of water: vol. water / vol. hydrometeor [-]')
+#    plt.title('Diameter = 7 [mm]')
+#    plt.savefig('ex_fwet.pdf',bbox_inches='tight')
+#
+#
+#    import matplotlib.pyplot as plt
+#    all_frac = np.array(all_frac)
