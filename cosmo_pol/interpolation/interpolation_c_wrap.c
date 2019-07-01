@@ -2995,16 +2995,16 @@ static swig_module_info swig_module = {swig_types, 2, 0, 0, 0, 0};
 #endif
 
 /*-----------------------------------------------
-              @(target):= _radar_interp_c.so
+              @(target):= _interpolation_c.so
   ------------------------------------------------*/
 #if PY_VERSION_HEX >= 0x03000000
-#  define SWIG_init    PyInit__radar_interp_c
+#  define SWIG_init    PyInit__interpolation_c
 
 #else
-#  define SWIG_init    init_radar_interp_c
+#  define SWIG_init    init_interpolation_c
 
 #endif
-#define SWIG_name    "_radar_interp_c"
+#define SWIG_name    "_interpolation_c"
 
 #define SWIGVERSION 0x030012 
 #define SWIG_VERSION SWIGVERSION

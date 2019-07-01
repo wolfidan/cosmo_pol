@@ -17,7 +17,7 @@ np.seterr(divide='ignore') # Disable divide by zero error
 import scipy.special as spe
 
 # Local imports
-from cosmo_pol.constants import global_constants as constants
+from . import global_constants as constants
 
 '''
 The list of constants are the following

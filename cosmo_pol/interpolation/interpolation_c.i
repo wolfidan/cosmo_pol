@@ -1,4 +1,4 @@
- %module radar_interp_c
+ %module interpolation_c
  %{
  /* Put header files here or function declarations like below */
 extern float* get_all_radar_pts(float *output, int len, float *coords_rad_pts, int crp_x, int crp_y, float *radar_heights, int rh_x, float *model_data, int md_x, int md_y, int md_z, float *model_heights, int mh_x, int mh_y, int mh_z, float *llc_cosmo, int llc_cosmo_x, float *res_cosmo, int res_cosmo_x);

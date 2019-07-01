@@ -129,6 +129,7 @@ def _check_validity(input_value, valid_value):
     Returns:
         flag_valid: a boolean that states if the provided value is valid
     '''
+    
     flag_valid = False
     if type(input_value) == list:
         # If input is a list, check all elements in the list
@@ -141,7 +142,7 @@ def _check_validity(input_value, valid_value):
         # Check if valid value is a list or a Range
         elif type(valid_value) == list:
             flag_valid = any([_check_validity(input_value,i) for i in valid_value])
-        elif type(valid_value) == Range:
+        elif type(valid_value) == Range or type(valid_value) == range:
             flag_valid = input_value in valid_value
         # Check if valid value is a string with a regex
         elif type(valid_value) == str and valid_value[0:5] == '-reg-':
@@ -154,6 +155,7 @@ def _check_validity(input_value, valid_value):
         else:
             # Last possibility is that valid_value is a single value
             flag_valid = valid_value == input_value
+    
     return flag_valid
 
 
@@ -196,6 +198,7 @@ def sanity_check(config):
     Returns:
         The parsed user input in the form of a dictionary
     '''
+
     # Parsing values
     for section in VALID_VALUES:
         if section not in config.keys():
@@ -219,7 +222,7 @@ def sanity_check(config):
                     msg = '''
                     Invalid value entered for key: {:s}/{:s}
                     The value must be: {:s}
-                    '''.format(section,key, valid_str)
+                    '''.format(section,key, str(valid_str))
                     print(dedent(msg))
 
                     if key in DEFAULTS[section].keys():

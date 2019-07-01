@@ -233,7 +233,7 @@ class RadarOperator(object):
 
         base_vars_ok = file_h.check_if_variables_in_file(['P','T','QV','QR','QC','QI','QS','QG','U','V','W'])
         two_mom_vars_ok = file_h.check_if_variables_in_file(['QH','QNH','QNR','QNS','QNG'])
-
+       
         if self.config['refraction']['scheme'] == 2:
             if file_h.check_if_variables_in_file(['T','P','QV']):
                 vars_to_load.extend('N')
@@ -429,7 +429,7 @@ class RadarOperator(object):
         for e in elevations: # Loop on the elevations
             func = partial(worker,event,e)
             list_beams = pool.map(func,azimuths)
-            list_sweeps.append(list_beams)
+            list_sweeps.append(list(list_beams))
 
         pool.close()
         pool.join()
@@ -527,7 +527,7 @@ class RadarOperator(object):
         for a in azimuths: # Loop on the o
             func = partial(worker, event, a) # Partial function
             list_beams = pool.map(func,elevations)
-            list_sweeps.append(list_beams)
+            list_sweeps.append(list(list_beams))
 
         pool.close()
         pool.join()
@@ -679,12 +679,38 @@ class RadarOperator(object):
 
 if __name__ == '__main__':
 
-    a = RadarOperator(options_file='/ltedata/Daniel/cosmo_pol/cosmo_pol/option_files/CH_PPI_dole_alias.yml')
-    files_c = pc.get_model_filenames('/ltedata/Daniel/cosmo_event_monika/')
-    a.load_model_file(files_c['h'][10],cfilename = files_c['c'][0])
+    a = RadarOperator(options_file='/ltedata/Daniel/cosmo_pol/cosmo_pol/option_files/CH_PPI_albis_alias.yml')
+#    files_c = pc.get_model_filenames('/ltedata/Daniel/cosmo_event_monika/')
+    cfile = '/ltedata/Daniel/cfiles_COSMO/lmConstPara_1158x774_0.01_20160106.grib'
+    a.load_model_file('/data/cosmo_runs_monika/inlaf201708020015',cfilename = cfile)
 
     r = a.get_PPI(elevations = 1)
     from cosmo_pol.radar.pyart_wrapper import RadarDisplay
     display = RadarDisplay(r, shift=(0.0, 0.0))
     import matplotlib.pyplot as plt
-    display.plot('RVEL',0,vmin=-8.3,vmax=8.3, title='aliased RVEL',cmap = plt.cm.RdBu_r,shading = 'flat')
+    plt.figure()
+    display.plot('RVEL',0,vmin=-8.3,vmax=8.3,
+                 title='aliased RVEL',
+                 cmap = plt.cm.RdBu_r,
+                 shading = 'flat',
+                 max_range = 150000)
+
+    plt.savefig('rvel_aliased.png',dpi=300,bbox_inches='tight')
+
+    cc = a.config
+    cc['radar']['nyquist_velocity']=None
+    a.config = cc
+
+    r = a.get_PPI(elevations = 1)
+    from cosmo_pol.radar.pyart_wrapper import RadarDisplay
+    display = RadarDisplay(r, shift=(0.0, 0.0))
+    import matplotlib.pyplot as plt
+    plt.figure()
+    display.plot('RVEL',0,vmin=-30,vmax=30,
+                 title='real RVEL',
+                 cmap = plt.cm.RdBu_r,
+                 shading = 'flat',
+                 max_range = 150000)
+
+
+    plt.savefig('rvel_unaliased.png',dpi=300,bbox_inches='tight')

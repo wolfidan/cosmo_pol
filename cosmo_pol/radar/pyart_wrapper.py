@@ -5,7 +5,7 @@ Created on Wed Jan 27 10:41:15 2016
 @author: wolfensb
 """
 
-import read_radar_data
+from .read_radar_data import readMXPOLRadData 
 from pyart import graph, filters, config, core, correct
 import os, glob, datetime
 import numpy as np
@@ -122,7 +122,7 @@ class RadarDisplay(graph.radardisplay.RadarDisplay):
         self._radar = None
         super(RadarDisplay,self).__init__(radar, shift=(0.0, 0.0))
 
-    def plot(self, fields, sweep = 0, max_range = 100000, **kwargs):
+    def plot(self, fields, sweep = 0, max_range = 250000, **kwargs):
         '''
         Plots the data to a Cartesian grid,
         IT is the same as the original pyART function
@@ -131,7 +131,7 @@ class RadarDisplay(graph.radardisplay.RadarDisplay):
         '''
 
         filt = filters.GateFilter(self._radar)
-        filt.exclude_above('range',max_range)
+        filt.exclude_above('rangearray',max_range)
 
 
         super(RadarDisplay,self).plot(field = fields,
@@ -213,8 +213,10 @@ class PyartRadop(core.Radar):
         sweep_stop_ray_index['data']=[]
 
         # Get all variables names
-        varnames=scan['data'][0][0].values.keys()
+        varnames = list(scan['data'][0][0].values.keys())
 
+        if 'range' in varnames:
+            varnames.remove('range')
         for i,k in enumerate(varnames):
 
             fields[k]={}
@@ -274,7 +276,7 @@ class PyartRadop(core.Radar):
                 elevations.extend(list([scan['elevations'][i]] * N_angles))
                 azimuths.extend(list(scan['azimuths']))
             elif scan_type == 'rhi':
-                fixed_angle['data']=scan['azimuths'][i]
+                fixed_angle['data'] = scan['azimuths'][i]
                 elevations.extend(list(scan['elevations']))
                 azimuths.extend(list([scan['azimuths'][i]] * N_angles))
 
@@ -284,6 +286,7 @@ class PyartRadop(core.Radar):
                 else:
                     fields[k]['data'] = row_stack(fields[k]['data'],
                                                     polar_data_sweep[k])
+        
 
         for k in polar_data_sweep.keys():
             fields[k]['data'] = np.ma.array(fields[k]['data'],
@@ -301,30 +304,36 @@ class PyartRadop(core.Radar):
         are the coords of every gate
         '''
 
-        latitude={'data' : np.array(scan['pos_time']['latitude'])}
-        longitude={'data' :  np.array(scan['pos_time']['longitude'])}
-        altitude={'data' :  np.array(scan['pos_time']['altitude'])}
+        latitude={'data' : np.array(scan['pos_time']['latitude'],dtype=float)}
+        longitude={'data' :  np.array(scan['pos_time']['longitude'],dtype=float)}
+        altitude={'data' :  np.array(scan['pos_time']['altitude'],dtype=float)}
 
         time_units='seconds since '+scan['pos_time']['time']
         time={'data' : np.zeros((N_angles,)),'units': time_units}
 
 
-        sweep_number={'data' : np.arange(0,N_sweeps)}
+        sweep_number={'data' : np.arange(0,N_sweeps, dtype = float)}
         sweep_mode={'data' : [scan_type]*N_sweeps}
 
         azimuth={'data' : np.array(azimuths)}
         rrange={'data': scan['ranges']}
-        elevation={'data' :np.array(elevations)}
-
+        elevation={'data' :np.array(elevations, dtype = float)}
+        fixed_angle['data'] = np.array(fixed_angle['data'], dtype = float)
+        sweep_start_ray_index['data'] = np.array(sweep_start_ray_index['data'], 
+                             dtype = float)
+        sweep_stop_ray_index['data'] = np.array(sweep_stop_ray_index['data'],
+                           dtype = float)
+        
         '''
         Finally add ranges as an additional variable, for convenience in order
         to filter gates based on their range
         '''
 
-        fields['range'] = {}
-        fields['range']['data'] = np.tile(rrange['data'],(len(elevation['data']),1))
+        fields['rangearray'] = {}
+        fields['rangearray']['data'] = np.tile(rrange['data'],(len(elevation['data']),1))
 
         metadata = {}
+        
 
         # Create PyART instance
         super(PyartRadop,self).__init__(time, rrange, fields, metadata,

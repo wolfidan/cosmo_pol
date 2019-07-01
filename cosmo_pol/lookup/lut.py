@@ -21,6 +21,7 @@ import tarfile
 import glob
 import shutil
 import pickle
+from io import BytesIO
 from textwrap import dedent
 
 def load_all_lut(scheme, list_hydrom, frequency, scattering_method):
@@ -65,6 +66,7 @@ def load_all_lut(scheme, list_hydrom, frequency, scattering_method):
             else:
                 lut_sz[h] = load_lut(folder_lut + name)
         except:
+            raise
             msg = """
             Could not find lookup table for scheme = {:s}, hydrometeor =
             {:s}, frequency = {:f} and scattering method = {:s}
@@ -135,12 +137,14 @@ def load_lut(filename):
         (see below)
     '''
     tar = tarfile.open(filename, "r")
+    
     lut = Lookup_table()
     for member in tar.getmembers():
+        array_file = BytesIO()
+        array_file.write(tar.extractfile(member).read())
         name = member.name.replace('.npy','')
-        f = tar.extractfile(member)
-
-        data = np.load(f)
+        array_file.seek(0)
+        data = np.load(array_file, allow_pickle = True, encoding = 'latin1')
 
         if name == 'axes_names':
             data = data.all()

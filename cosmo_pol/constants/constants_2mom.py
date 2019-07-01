@@ -5,7 +5,7 @@ Created on Thu Feb  4 13:46:57 2016
 @author: wolfensb
 """
 import scipy.special as spe
-import constants_1mom as c1
+from . import constants_1mom as c1
 
 #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 # PSD Parameters

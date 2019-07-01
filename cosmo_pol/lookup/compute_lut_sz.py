@@ -323,7 +323,7 @@ def sz_lut_melting(scheme, hydrom_type, list_frequencies, list_elevations,
         list_frequencies=[list_frequencies]
 
     hydrom = create_hydrometeor(hydrom_type,scheme)
-	hydrom.radius_type = Scatterer.RADIUS_MAXIMUM		
+    hydrom.radius_type = Scatterer.RADIUS_MAXIMUM		
 
     array_D = []
     for wc in W_CONTENTS:
@@ -397,9 +397,9 @@ def sz_lut(scheme, hydrom_type, list_frequencies, list_elevations,
 
     hydrom = create_hydrometeor(hydrom_type,scheme)
     if hydrom_type != 'R':
-		hydrom.radius_type = Scatterer.RADIUS_EQUAL_VOLUME
-	else:
-		hydrom.radius_type = Scatterer.RADIUS_MAXIMUM		
+        hydrom.radius_type = Scatterer.RADIUS_EQUAL_VOLUME
+    else:
+        hydrom.radius_type = Scatterer.RADIUS_MAXIMUM		
 
     list_D=np.linspace(hydrom.d_min,hydrom.d_max,NUM_DIAMETERS).astype('float32')
 

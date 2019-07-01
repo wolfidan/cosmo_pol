@@ -2,7 +2,7 @@ radar:
     coords: [46.42561, 6.09996,1672]
     type: ground
     frequency: 5.6
-    range: 95000
+    range: 150000
     radial_resolution: 150
     PRI: 700
     FFT_length: 128

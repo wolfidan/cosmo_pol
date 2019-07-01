@@ -3,16 +3,16 @@ radar:
     type: ground
     frequency: 5.6
     range: 150000
-    radial_resolution: 500
+    radial_resolution: 150
     PRI: 700
     FFT_length: 128
     sensitivity: [-15,10000]
     3dB_beamwidth: 1.
-    nyquist_velocity: '/ltedata/Daniel/cosmo_pol/cosmo_pol/option_files/nyquist_swiss_radars.txt'
+    nyquist_velocity: '/store/msrad/utils/anaconda3/envs/radop_dw/cosmo_pol/cosmo_pol/option_files/nyquist_swiss_radars.txt'
 integration:
     scheme: 1
-    nh_GH: 3
-    nv_GH: 5
+    nh_GH: 1
+    nv_GH: 1
     weight_threshold: 0.999
 refraction:
     scheme: 1
