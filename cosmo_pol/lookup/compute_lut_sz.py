@@ -57,8 +57,7 @@ Melting Snow: ELEVATIONS, W_CONTENTS, DIAMETER
 Melting Graupel: ELEVATIONS, W_CONTENTS, DIAMETER
 '''
 
-# ELEVATIONS = range(0,91,2)
-ELEVATIONS = range(0,4,2)
+ELEVATIONS = range(0,91,2)
 TEMPERATURES_LIQ = range(262,316,2)
 TEMPERATURES_SOL = range(200,278,2)
 W_CONTENTS = np.linspace(1E-3,0.999,100)
@@ -239,14 +238,12 @@ def _compute_sz_with_quad_melting(hydrom, freq, elevation, w_content, quad_pts_o
     geom_back=(90-elevation, 180-(90-elevation), 0., 180, 0.0,0.0)
     geom_forw=(90-elevation, 90-elevation, 0., 0.0, 0.0,0.0)
 
-    quad_pts_w = quad_pts[0]
-    quad_pts_ar = quad_pts[1]
     for i,D in enumerate(list_D):
         SCATTERER.radius = D/2.
         SCATTERER.m = m_func(D)
-        print(m_func(D),w_content)
-        SCATTERER.beta_p = quad_pts_w[0][i]
-        SCATTERER.beta_w = quad_pts_w[1][i]
+        # print(m_func(D),w_content)
+        SCATTERER.beta_p = quad_pts_o[0][i]
+        SCATTERER.beta_w = quad_pts_o[1][i]
 
         Z_back = np.zeros((4,4))
         SCATTERER.set_geometry(geom_back)
