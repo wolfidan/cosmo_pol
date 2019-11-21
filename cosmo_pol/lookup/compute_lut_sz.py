@@ -18,7 +18,7 @@ from pytmatrix import orientation
 from pytmatrix.tmatrix import Scatterer
 import multiprocessing
 from joblib import Parallel, delayed
-import stats
+from scipy import stats
 
 # Local imports
 from cosmo_pol.constants import global_constants as constants
@@ -34,7 +34,7 @@ SCATTERING_METHOD = 'tmatrix_masc'
 # the directory of this file
 BASE_FOLDER = os.path.dirname(os.path.realpath(__file__)) +'/'
 # The folder where the lookup tables must be stored
-FOLDER_LUT = BASE_FOLDER + SCATTERING_METHOD
+FOLDER_LUT = BASE_FOLDER + SCATTERING_METHOD + '/'
 # The folder where the computed quadrature points must be stored
 FOLDER_QUAD = BASE_FOLDER + 'quad_pts/'
 
@@ -57,7 +57,8 @@ Melting Snow: ELEVATIONS, W_CONTENTS, DIAMETER
 Melting Graupel: ELEVATIONS, W_CONTENTS, DIAMETER
 '''
 
-ELEVATIONS = range(0,91,2)
+# ELEVATIONS = range(0,91,2)
+ELEVATIONS = range(0,4,2)
 TEMPERATURES_LIQ = range(262,316,2)
 TEMPERATURES_SOL = range(200,278,2)
 W_CONTENTS = np.linspace(1E-3,0.999,100)
@@ -141,7 +142,7 @@ def _compute_gautschi_ar(ar_lambda, ar_loc, ar_mu):
     gautschi_w = []
     for l in zip(ar_lambda, ar_loc, ar_mu):
         gamm = stats.gamma(l[0],l[1],l[2])
-        pts,wei = quadrature.get_points_and_weights(lambda x: gamm.pdf(x),
+        pts,wei = quadrature.gautschi_points_and_weights(lambda x: gamm.pdf(x),
                                                     num_points = N_QUAD_PTS,
                                                     left=l[1],right=MAX_AR)
         # Check if sum of weights if 1, if not set it to 1
@@ -202,7 +203,7 @@ def _compute_sz_with_quad(hydrom, freq, elevation, T, quad_pts_o,
             S_ar = SCATTERER.get_S()
             S_forw += we * S_ar
         list_SZ.append([Z_back,S_forw])
-    print('done')
+    # print('done')
     return list_SZ
 
 
@@ -261,7 +262,7 @@ def _compute_sz_with_quad_melting(hydrom, freq, elevation, w_content, quad_pts_o
             S_ar = SCATTERER.get_S()
             S_forw += we * S_ar
         list_SZ.append([Z_back,S_forw])
-    print('done')
+    # print('done')
     return list_SZ
 
 def _flatten_matrices(list_matrices):
@@ -466,7 +467,7 @@ def _quadrature_parallel_melting(hydrom, f_wet):
 
     return quad_pts_o, quad_pts_ar
 
-def _calculate_quadrature_points(hydrom_type, folder):
+def _calculate_quadrature_points(hydrom_type):
     """
         Computes the quadrature points and weights for the integration of the
         distributions of orientations and aspect ratio type for a given
@@ -531,7 +532,7 @@ if __name__=='__main__':
             print(hydrom_type)
             _calculate_quadrature_points(hydrom_type)
 
-        quad_pts[hydrom_type] = np.load(fname)
+        quad_pts[hydrom_type] = np.load(fname, allow_pickle=True)
 
     for f in FREQUENCIES:
         for hydrom_type in HYDROM_TYPES:
