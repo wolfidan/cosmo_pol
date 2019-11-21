@@ -209,7 +209,7 @@ class Lookup_table:
 
         self.axes_limits.append([np.min(axis_values), np.max(axis_values)])
         self.axes_step.append(axis_values[1]-axis_values[0])
-        self.axes_len.append(len(axis_values[0]) if name == 'd' else len(axis_values))
+        self.axes_len.append(len(axis_values[0]) if isinstance(axis_values[0], np.ndarray) else len(axis_values))
         self.axes.append(axis_values)
 
     def set_axis_values(self, axis_name, axis_values):
