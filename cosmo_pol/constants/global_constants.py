@@ -58,6 +58,22 @@ B_AR_LAMBDA_GRAU: exponent parameter b in the power-law relation defining the
     value of the Lambda in the gamma distribution for graupel aspect-ratios
     as a function of diameter
     Lambda(D) = a * D^b
+A_AR_M_AGG: intercept parameter a in the power-law relation defining the
+    value of the M in the gamma distribution for aggregate aspect-ratios
+    as a function of diameter
+    M(D) = a * D^b
+B_AR_M_AGG: exponent parameter b in the power-law relation defining the
+    value of the M in the gamma distribution for aggregate aspect-ratios
+    as a function of diameter
+    M(D) = a * D^b
+A_AR_M_GRAU: intercept parameter a in the power-law relation defining the
+    value of the M in the gamma distribution for graupel aspect-ratios
+    as a function of diameter
+    M(D) = a * D^b
+B_AR_M_GRAU: exponent parameter b in the power-law relation defining the
+    value of the M in the gamma distribution for graupel aspect-ratios
+    as a function of diameter
+    M(D) = a * D^b
 A_CANT_STD_AGG: intercept parameter a in the power-law relation defining the
     value of the standard deviation of aggregates orientations as a function
     of the diameter
@@ -141,6 +157,10 @@ class Constant_class(object):
         self.GPM_KA_FREQUENCY = 35.6
         self.GPM_KU_FREQUENCY = 13.6
         self.GPM_3DB_BEAMWIDTH = 0.5
+
+        # some missing global constant
+        self.T_K_SQUARED = 283.15
+        self.M_AIR = complex(1, 0) # Mair ~ 1
 
         if CONFIG != None:
             #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

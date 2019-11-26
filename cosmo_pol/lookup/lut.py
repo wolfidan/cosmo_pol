@@ -181,6 +181,10 @@ class Lookup_table:
          # the step for every axis: x1 - x0
         self.axes_step = []
 
+        # to avoid the array shape check error in set_value_table for axis 'd',
+        # which has different axes value for different 'wc'
+        self.axes_len = []
+
         # Stores the dependent data for each point of the regular grid defined
         # the axes
         self.value_table = []
@@ -205,6 +209,7 @@ class Lookup_table:
 
         self.axes_limits.append([np.min(axis_values), np.max(axis_values)])
         self.axes_step.append(axis_values[1]-axis_values[0])
+        self.axes_len.append(len(axis_values[0]) if isinstance(axis_values[0], np.ndarray) else len(axis_values))
         self.axes.append(axis_values)
 
     def set_axis_values(self, axis_name, axis_values):
@@ -240,7 +245,7 @@ class Lookup_table:
             value_table = np.array(value_table)
 
         # Check dimensions
-        tuple_axes_len = [len(ax) for ax in self.axes]
+        tuple_axes_len = tuple(self.axes_len)
         if value_table.shape != tuple_axes_len:
             msg = '''
             The shape of the specified data does not match with the length

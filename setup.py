@@ -3,6 +3,7 @@
 # System imports
 from distutils.core import *
 from distutils      import sysconfig
+from setuptools import setup, Extension, Command
 from pip import __file__ as pip_loc
 from os import path
 import os
@@ -23,11 +24,11 @@ try:
 except:
     print('Could not create symlink to lookup tables, maybe they are already present')
 # interp1 extension module
-_doppler_c = Extension("_interp1_c",
+_doppler_c = Extension("_doppler_c",
                    ["./cosmo_pol/scatter/doppler_c.i","./cosmo_pol/scatter/doppler_c.c"],
                    include_dirs = [numpy_include],
                    )
-_interpolation_c_c = Extension("_interpolation_c_c",
+_interpolation_c = Extension("_interpolation_c",
                    ["./cosmo_pol/interpolation/interpolation_c.i","./cosmo_pol/interpolation/interpolation_c.c"],
                    include_dirs = [numpy_include],
                   )
@@ -51,7 +52,7 @@ setup(  name        = "cosmo_pol",
 	  'pynio',
         ],
         zip_safe=False,
-        ext_modules = [_doppler_c,_interpolation_c_c ]
+        ext_modules = [_doppler_c,_interpolation_c]
         )
 
 

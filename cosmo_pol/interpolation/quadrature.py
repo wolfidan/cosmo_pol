@@ -65,7 +65,7 @@ def gautschi_points_and_weights(w_func=lambda x : np.ones(x.shape),
         w_func: The weighting function w(x). Must be a function that takes
             one argument and is valid over the open interval (left, right).
         left: The left boundary of the interval
-        right: The left boundary of the interval
+        right: The right boundary of the interval
         num_points: number of integration points to return
         n: the number of points to evaluate w_func at.
     Returns:

@@ -583,7 +583,7 @@ class _MeltingHydrometeor(object):
             for the specified diameters
         """
         c_rain = self.equivalent_rain.canting_angle_std
-        c_snow = self.equivalent_snow.get_canting_angle_std_masc(D)
+        c_snow = self.equivalent_solid.get_canting_angle_std_masc(D)
 
         return self.f_wet * c_rain + (1 - self.f_wet) * c_snow
 
@@ -604,7 +604,7 @@ class _MeltingHydrometeor(object):
             mu_wet: shape parameter of the gamma pdf
 
         """
-        lamb_snow, loc_snow, mu_snow = self.equivalent_snow.get_aspect_ratio_pdf_masc(D)
+        lamb_snow, loc_snow, mu_snow = self.equivalent_solid.get_aspect_ratio_pdf_masc(D)
 
         lamb_rain = lamb_snow
 
@@ -943,9 +943,9 @@ class Snow(_Solid):
             mu: shape parameter of the gamma pdf
 
         """
-        lambd = constants.AM_AR_LAMBDA_AGG*D**constants.B_AR_LAMBDA_AGG
+        lambd = constants.A_AR_LAMBDA_AGG*D**constants.B_AR_LAMBDA_AGG
         loc = np.ones(len(lambd))
-        mu = constants.A_AR_MU_AGG*D**constants.B_AR_MU_AGG
+        mu = constants.A_AR_M_AGG*D**constants.B_AR_M_AGG
         return lambd, loc, mu
 
 
@@ -1088,7 +1088,7 @@ class Graupel(_Solid):
         """
         lamb = constants.A_AR_LAMBDA_GRAU * D ** constants.B_AR_LAMBDA_GRAU
         loc =  np.ones(len(lamb))
-        mu = constants.A_M_MU_GRAU*D**constants.B_AR_MU_GRAU
+        mu = constants.A_AR_M_GRAU*D**constants.B_AR_M_GRAU
         return lamb, loc, mu
 
     def get_canting_angle_std_masc(self,D):
@@ -1423,7 +1423,7 @@ class MeltingSnow(_MeltingHydrometeor):
 
                 elif self.scheme == '2mom':
                     q = np.squeeze(np.array([args[1]]))
-#            # Reset vd_interpolator since f_wet has changed
+            # Reset vd_interpolator since f_wet has changed
             self.vd_interpolator = None
             self.prop_factor = q / self.integrate_M()
 
@@ -1470,7 +1470,7 @@ class MeltingGraupel(_MeltingHydrometeor):
 
                 elif self.scheme == '2mom':
                     q = np.array([args[1]])
-#            # Reset vd_interpolator since f_wet has changed
+            # Reset vd_interpolator since f_wet has changed
             self.vd_interpolator = None
             self.prop_factor = q / self.integrate_M()
 
